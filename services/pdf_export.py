@@ -1,0 +1,163 @@
+"""
+Module 16: PDF Export
+Exports a chat session (messages + citations) as a formatted PDF using ReportLab.
+"""
+import io
+import logging
+from typing import List, Dict, Any
+from datetime import datetime
+
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import cm
+from reportlab.lib import colors
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable, Table, TableStyle
+from reportlab.lib.enums import TA_LEFT, TA_CENTER
+
+logger = logging.getLogger(__name__)
+
+
+def _build_styles():
+    styles = getSampleStyleSheet()
+
+    title_style = ParagraphStyle(
+        'ChatTitle',
+        parent=styles['Title'],
+        fontSize=20,
+        textColor=colors.HexColor('#1e40af'),
+        spaceAfter=6,
+    )
+    subtitle_style = ParagraphStyle(
+        'Subtitle',
+        parent=styles['Normal'],
+        fontSize=10,
+        textColor=colors.HexColor('#6b7280'),
+        spaceAfter=12,
+    )
+    user_label = ParagraphStyle(
+        'UserLabel',
+        parent=styles['Normal'],
+        fontSize=9,
+        textColor=colors.HexColor('#2563eb'),
+        fontName='Helvetica-Bold',
+        spaceBefore=12,
+        spaceAfter=2,
+    )
+    assistant_label = ParagraphStyle(
+        'AssistantLabel',
+        parent=styles['Normal'],
+        fontSize=9,
+        textColor=colors.HexColor('#059669'),
+        fontName='Helvetica-Bold',
+        spaceBefore=12,
+        spaceAfter=2,
+    )
+    message_style = ParagraphStyle(
+        'Message',
+        parent=styles['Normal'],
+        fontSize=10,
+        leading=14,
+        textColor=colors.HexColor('#111827'),
+    )
+    citation_style = ParagraphStyle(
+        'Citation',
+        parent=styles['Normal'],
+        fontSize=8,
+        textColor=colors.HexColor('#6b7280'),
+        leftIndent=12,
+        spaceBefore=4,
+    )
+    return {
+        'title': title_style,
+        'subtitle': subtitle_style,
+        'user_label': user_label,
+        'assistant_label': assistant_label,
+        'message': message_style,
+        'citation': citation_style,
+        'normal': styles['Normal'],
+    }
+
+
+def export_chat_to_pdf(
+    session_title: str,
+    messages: List[Dict[str, Any]],
+    username: str,
+    document_names: List[str],
+    exported_at: datetime = None,
+) -> bytes:
+    """
+    Generate a PDF of a chat session and return raw bytes.
+
+    messages: list of {role, content, sources, created_at}
+    """
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=2 * cm,
+        leftMargin=2 * cm,
+        topMargin=2 * cm,
+        bottomMargin=2 * cm,
+    )
+
+    styles = _build_styles()
+    exported_at = exported_at or datetime.utcnow()
+    story = []
+
+    # Header
+    story.append(Paragraph(f"Chat Export: {session_title}", styles['title']))
+    story.append(Paragraph(
+        f"User: {username} &nbsp;|&nbsp; "
+        f"Exported: {exported_at.strftime('%Y-%m-%d %H:%M UTC')} &nbsp;|&nbsp; "
+        f"Documents: {', '.join(document_names) if document_names else 'N/A'}",
+        styles['subtitle'],
+    ))
+    story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#e5e7eb')))
+    story.append(Spacer(1, 0.4 * cm))
+
+    # Messages
+    for msg in messages:
+        role = msg.get('role', 'user')
+        content = msg.get('content', '')
+        sources = msg.get('sources', [])
+        created_at = msg.get('created_at', '')
+
+        if isinstance(created_at, datetime):
+            time_str = created_at.strftime('%H:%M')
+        else:
+            time_str = ''
+
+        if role == 'user':
+            label = f"You  [{time_str}]" if time_str else "You"
+            story.append(Paragraph(label, styles['user_label']))
+        else:
+            label = f"AI Assistant  [{time_str}]" if time_str else "AI Assistant"
+            story.append(Paragraph(label, styles['assistant_label']))
+
+        # Sanitize content for ReportLab (escape HTML chars)
+        safe_content = content.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        safe_content = safe_content.replace('\n', '<br/>')
+        story.append(Paragraph(safe_content, styles['message']))
+
+        # Citations for assistant messages
+        if role == 'assistant' and sources:
+            story.append(Spacer(1, 0.2 * cm))
+            story.append(Paragraph("Sources:", styles['citation']))
+            for src in sources:
+                doc_name = src.get('document_name', 'Unknown')
+                page_num = src.get('page_number', '?')
+                story.append(Paragraph(
+                    f"  • {doc_name}, Page {page_num}",
+                    styles['citation'],
+                ))
+
+    story.append(Spacer(1, 0.5 * cm))
+    story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor('#e5e7eb')))
+    story.append(Paragraph(
+        "Generated by AI RAG Chatbot",
+        ParagraphStyle('Footer', parent=styles['normal'], fontSize=8,
+                       textColor=colors.HexColor('#9ca3af'), alignment=TA_CENTER),
+    ))
+
+    doc.build(story)
+    return buffer.getvalue()
