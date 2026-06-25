@@ -1,12 +1,26 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { motion } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
 import toast from 'react-hot-toast'
 import { Eye, EyeOff, Sparkles, ArrowRight, Lock, User } from 'lucide-react'
+import AuroraBackground from '../components/ui/AuroraBackground'
+import ParticleBackground from '../components/ui/ParticleBackground'
+import AnimatedInput from '../components/ui/AnimatedInput'
+import AnimatedButton from '../components/ui/AnimatedButton'
+
+const container = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.08, delayChildren: 0.1 } },
+}
+const item = {
+  hidden: { opacity: 0, y: 16 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] } },
+}
 
 export default function LoginPage() {
   const { login } = useAuth()
-  const [form, setForm]       = useState({ username: '', password: '' })
+  const [form, setForm] = useState({ username: '', password: '' })
   const [loading, setLoading] = useState(false)
   const [showPwd, setShowPwd] = useState(false)
 
@@ -25,96 +39,87 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen auth-bg dark:auth-bg flex items-center justify-center p-4">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-ink-950 p-4">
+      <AuroraBackground />
+      <ParticleBackground count={26} />
 
-      {/* Background decorations */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-96 h-96 bg-primary-400/10 rounded-full blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-violet-400/10 rounded-full blur-3xl" />
-      </div>
+      <motion.div
+        variants={container}
+        initial="hidden"
+        animate="show"
+        className="relative z-10 w-full max-w-sm"
+      >
+        {/* Logo + heading */}
+        <motion.div variants={item} className="mb-8 text-center">
+          <motion.div
+            initial={{ scale: 0, rotate: -30 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ type: 'spring', stiffness: 260, damping: 18, delay: 0.15 }}
+            className="mx-auto mb-5 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-500 to-accent-600 shadow-glow"
+          >
+            <motion.div
+              animate={{ rotate: [0, 10, -10, 0] }}
+              transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+            >
+              <Sparkles size={28} className="text-white" />
+            </motion.div>
+          </motion.div>
+          <h1 className="font-display text-3xl font-bold tracking-tight text-white">Welcome back</h1>
+          <p className="mt-2 text-sm text-zinc-400">Sign in to your <span className="text-gradient font-semibold">Nexus RAG</span> workspace</p>
+        </motion.div>
 
-      <div className="w-full max-w-sm relative z-10 animate-slide-up">
-
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl
-                          bg-gradient-to-br from-primary-500 to-violet-600 shadow-glow mb-4">
-            <Sparkles className="text-white" size={26} />
-          </div>
-          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">
-            Welcome back
-          </h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-            Sign in to your AI RAG Chatbot
-          </p>
-        </div>
-
-        {/* Card */}
-        <div className="card p-6 shadow-xl dark:shadow-black/30">
+        {/* Glass card */}
+        <motion.div variants={item} className="glass rounded-2xl p-6 shadow-glow-sm">
           <form onSubmit={handleSubmit} className="space-y-4">
-
-            <div>
-              <label className="label">Username</label>
-              <div className="relative">
-                <User size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
-                <input
-                  type="text"
-                  className="input-field pl-10"
-                  placeholder="Enter your username"
-                  value={form.username}
-                  onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
-                  autoComplete="username"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="label">Password</label>
-              <div className="relative">
-                <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
-                <input
-                  type={showPwd ? 'text' : 'password'}
-                  className="input-field pl-10 pr-11"
-                  placeholder="Enter your password"
-                  value={form.password}
-                  onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-                  autoComplete="current-password"
-                />
-                <button type="button" onClick={() => setShowPwd(v => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors">
+            <AnimatedInput
+              label="Username"
+              icon={User}
+              value={form.username}
+              onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
+              autoComplete="username"
+            />
+            <AnimatedInput
+              label="Password"
+              icon={Lock}
+              type={showPwd ? 'text' : 'password'}
+              value={form.password}
+              onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+              autoComplete="current-password"
+              rightSlot={
+                <button
+                  type="button"
+                  onClick={() => setShowPwd(v => !v)}
+                  className="text-zinc-500 transition-colors hover:text-zinc-300"
+                >
                   {showPwd ? <EyeOff size={15} /> : <Eye size={15} />}
                 </button>
-              </div>
-            </div>
+              }
+            />
 
-            <button type="submit" disabled={loading} className="btn-primary w-full py-2.5 mt-2">
-              {loading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Signing in…
-                </span>
-              ) : (
-                <span className="flex items-center justify-center gap-2">
+            <AnimatedButton type="submit" loading={loading} className="mt-2 w-full py-3">
+              {!loading && (
+                <>
                   Sign In <ArrowRight size={15} />
-                </span>
+                </>
               )}
-            </button>
+              {loading && 'Signing in'}
+            </AnimatedButton>
           </form>
 
-          <div className="mt-5 pt-5 border-t border-zinc-100 dark:border-zinc-800 text-center">
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              Don't have an account?{' '}
-              <Link to="/register" className="text-primary-600 dark:text-primary-400 font-semibold hover:underline underline-offset-2">
+          <div className="mt-5 border-t border-white/[0.06] pt-5 text-center">
+            <p className="text-sm text-zinc-400">
+              Don&apos;t have an account?{' '}
+              <Link to="/register" className="font-semibold text-primary-400 underline-offset-2 hover:underline">
                 Create one
               </Link>
             </p>
           </div>
-        </div>
+        </motion.div>
 
-        <p className="text-center text-xs text-zinc-400 dark:text-zinc-600 mt-6">
-          AI RAG Multi-Document Chatbot 
-        </p>
-      </div>
+        <motion.p variants={item} className="mt-6 text-center text-xs text-zinc-600">
+          AI RAG Multi-Document Chatbot
+        </motion.p>
+      </motion.div>
     </div>
   )
 }

@@ -1,30 +1,57 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { AnimatePresence, motion } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
 import toast from 'react-hot-toast'
-import { Eye, EyeOff, Sparkles, ArrowRight } from 'lucide-react'
+import { Eye, EyeOff, Sparkles, ArrowRight, ArrowLeft, User, Mail, Lock, UserCircle, Check } from 'lucide-react'
+import AuroraBackground from '../components/ui/AuroraBackground'
+import ParticleBackground from '../components/ui/ParticleBackground'
+import AnimatedInput from '../components/ui/AnimatedInput'
+import AnimatedButton from '../components/ui/AnimatedButton'
+
+const STEPS = ['Your details', 'Secure account']
 
 export default function RegisterPage() {
   const { register } = useAuth()
   const [form, setForm] = useState({
     username: '', email: '', first_name: '', last_name: '', password: '', password2: '',
   })
+  const [step, setStep] = useState(0)
   const [loading, setLoading] = useState(false)
   const [showPwd, setShowPwd] = useState(false)
+  const [errors, setErrors] = useState({})
 
-  const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }))
+  const set = k => e => {
+    setForm(f => ({ ...f, [k]: e.target.value }))
+    if (errors[k]) setErrors(prev => ({ ...prev, [k]: undefined }))
+  }
+
+  const validateStep1 = () => {
+    const e = {}
+    if (!form.username.trim()) e.username = 'Username is required'
+    if (!form.email.trim()) e.email = 'Email is required'
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'Enter a valid email'
+    setErrors(e)
+    return Object.keys(e).length === 0
+  }
+
+  const next = () => { if (validateStep1()) setStep(1) }
 
   const handleSubmit = async e => {
     e.preventDefault()
-    if (form.password !== form.password2) { toast.error('Passwords do not match.'); return }
+    const fieldErr = {}
+    if (form.password.length < 8) fieldErr.password = 'Min. 8 characters'
+    if (form.password !== form.password2) fieldErr.password2 = 'Passwords do not match'
+    if (Object.keys(fieldErr).length) { setErrors(fieldErr); return }
+
     setLoading(true)
     try {
       await register(form)
       toast.success('Account created!')
     } catch (err) {
-      const errors = err.response?.data?.errors
-      if (errors && typeof errors === 'object') {
-        Object.values(errors).flat().forEach(msg => toast.error(msg))
+      const apiErrors = err.response?.data?.errors
+      if (apiErrors && typeof apiErrors === 'object') {
+        Object.values(apiErrors).flat().forEach(msg => toast.error(msg))
       } else {
         toast.error(err.response?.data?.message || 'Registration failed.')
       }
@@ -33,97 +60,120 @@ export default function RegisterPage() {
     }
   }
 
+  const progress = ((step + 1) / STEPS.length) * 100
+
   return (
-    <div className="min-h-screen auth-bg dark:auth-bg flex items-center justify-center p-4">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-ink-950 p-4">
+      <AuroraBackground />
+      <ParticleBackground count={26} />
 
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-96 h-96 bg-primary-400/10 rounded-full blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-violet-400/10 rounded-full blur-3xl" />
-      </div>
-
-      <div className="w-full max-w-md relative z-10 animate-slide-up">
-
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl
-                          bg-gradient-to-br from-primary-500 to-violet-600 shadow-glow mb-4">
-            <Sparkles className="text-white" size={26} />
-          </div>
-          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">Create account</h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Join AI RAG Chatbot today</p>
+      <motion.div
+        initial={{ opacity: 0, y: 18 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+        className="relative z-10 w-full max-w-md"
+      >
+        {/* Header */}
+        <div className="mb-7 text-center">
+          <motion.div
+            initial={{ scale: 0, rotate: -30 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ type: 'spring', stiffness: 260, damping: 18, delay: 0.1 }}
+            className="mx-auto mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-500 to-accent-600 shadow-glow"
+          >
+            <Sparkles size={24} className="text-white" />
+          </motion.div>
+          <h1 className="font-display text-2xl font-bold tracking-tight text-white">Create your account</h1>
+          <p className="mt-1.5 text-sm text-zinc-400">Join the <span className="text-gradient font-semibold">Nexus RAG</span> workspace</p>
         </div>
 
-        <div className="card p-6 shadow-xl dark:shadow-black/30">
-          <form onSubmit={handleSubmit} className="space-y-4">
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="label">First Name</label>
-                <input className="input-field" placeholder="First name" value={form.first_name} onChange={set('first_name')} />
-              </div>
-              <div>
-                <label className="label">Last Name</label>
-                <input className="input-field" placeholder="Last name" value={form.last_name} onChange={set('last_name')} />
-              </div>
+        {/* Glass form */}
+        <div className="glass rounded-2xl p-6 shadow-glow-sm">
+          {/* Progress indicator */}
+          <div className="mb-6">
+            <div className="mb-2 flex items-center justify-between text-xs font-medium">
+              <span className={step >= 0 ? 'text-primary-300' : 'text-zinc-500'}>
+                {step > 0 ? <Check size={12} className="mr-1 inline" /> : '1. '}{STEPS[0]}
+              </span>
+              <span className={step >= 1 ? 'text-primary-300' : 'text-zinc-500'}>2. {STEPS[1]}</span>
             </div>
-
-            <div>
-              <label className="label">Username</label>
-              <input className="input-field" placeholder="Choose a username" value={form.username}
-                onChange={set('username')} autoComplete="username" />
+            <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
+              <motion.div
+                className="h-full rounded-full bg-gradient-to-r from-primary-500 to-accent-500"
+                animate={{ width: `${progress}%` }}
+                transition={{ type: 'spring', stiffness: 200, damping: 26 }}
+              />
             </div>
+          </div>
 
-            <div>
-              <label className="label">Email</label>
-              <input type="email" className="input-field" placeholder="you@example.com"
-                value={form.email} onChange={set('email')} />
-            </div>
+          <form onSubmit={handleSubmit}>
+            <AnimatePresence mode="wait" initial={false}>
+              {step === 0 ? (
+                <motion.div
+                  key="step1"
+                  initial={{ opacity: 0, x: 24 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -24 }}
+                  transition={{ duration: 0.25 }}
+                  className="space-y-4"
+                >
+                  <div className="grid grid-cols-2 gap-3">
+                    <AnimatedInput label="First name" icon={UserCircle} value={form.first_name} onChange={set('first_name')} />
+                    <AnimatedInput label="Last name" value={form.last_name} onChange={set('last_name')} />
+                  </div>
+                  <AnimatedInput label="Username" icon={User} value={form.username} onChange={set('username')} error={errors.username} autoComplete="username" />
+                  <AnimatedInput label="Email" icon={Mail} type="email" value={form.email} onChange={set('email')} error={errors.email} />
 
-            <div>
-              <label className="label">Password</label>
-              <div className="relative">
-                <input type={showPwd ? 'text' : 'password'} className="input-field pr-11"
-                  placeholder="Min. 8 characters" value={form.password} onChange={set('password')} />
-                <button type="button" onClick={() => setShowPwd(v => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors">
-                  {showPwd ? <EyeOff size={15} /> : <Eye size={15} />}
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label className="label">Confirm Password</label>
-              <input type="password" className="input-field" placeholder="Repeat password"
-                value={form.password2} onChange={set('password2')} />
-            </div>
-
-            <button type="submit" disabled={loading} className="btn-primary w-full py-2.5 mt-1">
-              {loading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Creating account…
-                </span>
+                  <AnimatedButton type="button" onClick={next} className="w-full py-3">
+                    Continue <ArrowRight size={15} />
+                  </AnimatedButton>
+                </motion.div>
               ) : (
-                <span className="flex items-center justify-center gap-2">
-                  Create Account <ArrowRight size={15} />
-                </span>
+                <motion.div
+                  key="step2"
+                  initial={{ opacity: 0, x: 24 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -24 }}
+                  transition={{ duration: 0.25 }}
+                  className="space-y-4"
+                >
+                  <AnimatedInput
+                    label="Password"
+                    icon={Lock}
+                    type={showPwd ? 'text' : 'password'}
+                    value={form.password}
+                    onChange={set('password')}
+                    error={errors.password}
+                    rightSlot={
+                      <button type="button" onClick={() => setShowPwd(v => !v)} className="text-zinc-500 transition-colors hover:text-zinc-300">
+                        {showPwd ? <EyeOff size={15} /> : <Eye size={15} />}
+                      </button>
+                    }
+                  />
+                  <AnimatedInput label="Confirm password" icon={Lock} type="password" value={form.password2} onChange={set('password2')} error={errors.password2} />
+
+                  <div className="flex gap-3">
+                    <AnimatedButton type="button" variant="secondary" onClick={() => setStep(0)} className="py-3">
+                      <ArrowLeft size={15} />
+                    </AnimatedButton>
+                    <AnimatedButton type="submit" loading={loading} className="flex-1 py-3">
+                      {!loading && (<>Create Account <ArrowRight size={15} /></>)}
+                      {loading && 'Creating account'}
+                    </AnimatedButton>
+                  </div>
+                </motion.div>
               )}
-            </button>
+            </AnimatePresence>
           </form>
 
-          <div className="mt-5 pt-5 border-t border-zinc-100 dark:border-zinc-800 text-center">
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
+          <div className="mt-5 border-t border-white/[0.06] pt-5 text-center">
+            <p className="text-sm text-zinc-400">
               Already have an account?{' '}
-              <Link to="/login" className="text-primary-600 dark:text-primary-400 font-semibold hover:underline underline-offset-2">
-                Sign in
-              </Link>
+              <Link to="/login" className="font-semibold text-primary-400 underline-offset-2 hover:underline">Sign in</Link>
             </p>
           </div>
         </div>
-
-        <p className="text-center text-xs text-zinc-400 dark:text-zinc-600 mt-6">
-          AI RAG Multi-Document Chatbot · Final Year Project
-        </p>
-      </div>
+      </motion.div>
     </div>
   )
 }

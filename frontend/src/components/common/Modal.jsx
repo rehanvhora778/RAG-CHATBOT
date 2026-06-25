@@ -1,32 +1,49 @@
 import { useEffect } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { X } from 'lucide-react'
+import { cn } from '../../lib/utils'
+
+const sizes = { sm: 'max-w-md', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-4xl' }
 
 export default function Modal({ open, onClose, title, children, size = 'md' }) {
   useEffect(() => {
-    if (open) document.body.style.overflow = 'hidden'
-    else document.body.style.overflow = ''
+    document.body.style.overflow = open ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
   }, [open])
 
-  if (!open) return null
-
-  const sizes = { sm: 'max-w-md', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-4xl' }
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className={`relative w-full ${sizes[size]} card shadow-2xl dark:shadow-black/50 animate-slide-up`}>
-        {title && (
-          <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100 dark:border-zinc-800">
-            <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{title}</h3>
-            <button onClick={onClose}
-              className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors">
-              <X size={16} />
-            </button>
-          </div>
-        )}
-        <div className="p-6">{children}</div>
-      </div>
-    </div>
+    <AnimatePresence>
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 bg-black/70 backdrop-blur-md"
+            onClick={onClose}
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 18 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.97, y: 10 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 26 }}
+            className={cn('relative w-full overflow-hidden rounded-2xl border border-white/10 bg-ink-850/95 backdrop-blur-2xl shadow-glow-sm', sizes[size])}
+          >
+            {title && (
+              <div className="flex items-center justify-between border-b border-white/[0.06] px-6 py-4">
+                <h3 className="font-display text-sm font-semibold text-white">{title}</h3>
+                <button
+                  onClick={onClose}
+                  className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-white/10 hover:text-white"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            )}
+            <div className="p-6">{children}</div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
   )
 }

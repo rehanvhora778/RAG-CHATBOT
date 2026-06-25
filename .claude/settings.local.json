@@ -6,7 +6,22 @@
       "PowerShell(Get-Process *)",
       "PowerShell(python --version)",
       "PowerShell(npm install *)",
-      "PowerShell(railway *)"
+      "PowerShell(railway *)",
+      "Bash(venv/Scripts/python.exe -m pip install whitenoise==6.7.0)",
+      "Bash(venv/Scripts/python.exe -c \"import whitenoise, groq, gunicorn; print\\('all import OK'\\)\")",
+      "Bash(venv/Scripts/python.exe manage.py check)",
+      "Read(//d/d/RAG chatbot/frontend/src/**)",
+      "Bash(npm run *)",
+      "PowerShell(Get-NetTCPConnection *)",
+      "PowerShell($c = Get-NetTCPConnection -LocalPort 3001 -State Listen -ErrorAction SilentlyContinue; if \\($c\\) { Stop-Process -Id $c.OwningProcess -Force -ErrorAction SilentlyContinue; \"Stopped temp instance on 3001\" } else { \"Nothing on 3001\" })",
+      "Read(//d/d/RAG chatbot/apps/**)",
+      "Read(//d/d/RAG chatbot/apps/authentication/**)",
+      "Bash(venv/Scripts/python.exe manage.py shell -c \"from django.contrib.auth.models import User; print\\('TOTAL USERS:', User.objects.count\\(\\)\\); [print\\(f'ID={u.id} | username={u.username} | email={u.email} | staff={u.is_staff} | superuser={u.is_superuser} | active={u.is_active} | hash={u.password[:20]}...'\\) for u in User.objects.order_by\\('id'\\)]\")",
+      "Bash(xargs wc -l)",
+      "Bash(npm install *)",
+      "PowerShell($c = Get-NetTCPConnection -LocalPort 3001 -State Listen -ErrorAction SilentlyContinue; if \\($c\\) { $c.OwningProcess | Select-Object -Unique | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue } ; \"cleaned 3001\" } else { \"3001 already clear\" }; $d = Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue; if \\($d\\) { \"port 3000 still serving your frontend\" } else { \"port 3000 free\" })",
+      "Bash(venv/Scripts/python.exe manage.py shell -c \"from django.contrib.auth.models import User; print\\('TOTAL:', User.objects.count\\(\\)\\); [print\\(f'ID={u.id} | {u.username} | {u.email} | admin={u.is_superuser} | staff={u.is_staff} | active={u.is_active}'\\) for u in User.objects.order_by\\('id'\\)]\")",
+      "Bash(venv/Scripts/python.exe -)"
     ]
   }
 }

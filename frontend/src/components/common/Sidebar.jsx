@@ -1,85 +1,150 @@
-import { NavLink } from 'react-router-dom'
+import { useState } from 'react'
+import { Link, useLocation } from 'react-router-dom'
+import { AnimatePresence, motion } from 'framer-motion'
 import { useAuth } from '../../contexts/AuthContext'
 import {
   LayoutDashboard, FileText, MessageSquare,
-  BarChart2, ShieldCheck, Sparkles,
+  BarChart2, ShieldCheck, Sparkles, PanelLeftClose, PanelLeftOpen,
 } from 'lucide-react'
+import { cn } from '../../lib/utils'
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/documents', label: 'Documents',  icon: FileText },
-  { to: '/chat',      label: 'Chat',       icon: MessageSquare },
-  { to: '/analytics', label: 'Analytics',  icon: BarChart2 },
+  { to: '/documents', label: 'Documents', icon: FileText },
+  { to: '/chat',      label: 'Chat',      icon: MessageSquare },
+  { to: '/analytics', label: 'Analytics', icon: BarChart2 },
 ]
 
-const adminItems = [
-  { to: '/admin', label: 'Admin Panel', icon: ShieldCheck },
-]
+const adminItems = [{ to: '/admin', label: 'Admin Panel', icon: ShieldCheck }]
+
+function NavItem({ to, label, icon: Icon, active, collapsed }) {
+  return (
+    <Link
+      to={to}
+      className={cn(
+        'group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors',
+        active ? 'text-white' : 'text-zinc-400 hover:text-zinc-100',
+      )}
+    >
+      {active && (
+        <motion.span
+          layoutId="nav-active"
+          transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+          className="absolute inset-0 rounded-xl border border-primary-500/30 bg-gradient-to-r from-primary-500/25 to-accent-500/10 shadow-glow-sm"
+        />
+      )}
+      <motion.span
+        whileHover={{ scale: 1.15, rotate: active ? 0 : -6 }}
+        transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+        className="relative z-10 shrink-0"
+      >
+        <Icon size={18} className={cn(active ? 'text-primary-300' : 'text-zinc-500 group-hover:text-zinc-200')} />
+      </motion.span>
+      <AnimatePresence initial={false}>
+        {!collapsed && (
+          <motion.span
+            initial={{ opacity: 0, width: 0 }}
+            animate={{ opacity: 1, width: 'auto' }}
+            exit={{ opacity: 0, width: 0 }}
+            transition={{ duration: 0.18 }}
+            className="relative z-10 overflow-hidden whitespace-nowrap"
+          >
+            {label}
+          </motion.span>
+        )}
+      </AnimatePresence>
+    </Link>
+  )
+}
 
 export default function Sidebar() {
   const { user } = useAuth()
+  const { pathname } = useLocation()
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem('sidebar_collapsed') === '1')
 
-  const linkClass = ({ isActive }) =>
-    `group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
-      isActive
-        ? 'nav-active text-primary-600 dark:text-primary-400'
-        : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800/60'
-    }`
+  const isActive = to => pathname === to || pathname.startsWith(to + '/')
+
+  const toggle = () => {
+    setCollapsed(c => {
+      localStorage.setItem('sidebar_collapsed', c ? '0' : '1')
+      return !c
+    })
+  }
 
   return (
-    <aside className="w-60 shrink-0 flex flex-col bg-white dark:bg-zinc-900 border-r border-zinc-100 dark:border-zinc-800/80">
-
+    <motion.aside
+      animate={{ width: collapsed ? 80 : 256 }}
+      transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+      className="relative z-20 flex shrink-0 flex-col border-r border-white/[0.06] bg-ink-900/80 backdrop-blur-xl"
+    >
       {/* Logo */}
-      <div className="h-14 flex items-center gap-3 px-5 border-b border-zinc-100 dark:border-zinc-800/80">
-        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-primary-500 to-violet-600 flex items-center justify-center shadow-glow-sm">
-          <Sparkles size={15} className="text-white" />
-        </div>
-        <div>
-          <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100 leading-none">RAG Chatbot</p>
-          <p className="text-[10px] text-zinc-400 mt-0.5 font-medium tracking-wide uppercase">AI Powered</p>
-        </div>
+      <div className="flex h-[60px] items-center gap-3 px-5">
+        <motion.div
+          whileHover={{ rotate: 12, scale: 1.08 }}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary-500 to-accent-600 shadow-glow-sm"
+        >
+          <Sparkles size={17} className="text-white" />
+        </motion.div>
+        <AnimatePresence initial={false}>
+          {!collapsed && (
+            <motion.div
+              initial={{ opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -8 }}
+              className="overflow-hidden"
+            >
+              <p className="font-display text-sm font-bold leading-none text-white">Nexus RAG</p>
+              <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.2em] text-zinc-500">AI Workspace</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        <p className="px-3 mb-2 text-[10px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-600">
-          Main Menu
-        </p>
-        {navItems.map(({ to, label, icon: Icon }) => (
-          <NavLink key={to} to={to} className={linkClass} end={to === '/chat'}>
-            <Icon size={16} className="shrink-0" />
-            <span>{label}</span>
-          </NavLink>
+      <nav className="flex-1 space-y-1 overflow-y-auto overflow-x-hidden px-3 py-4">
+        {!collapsed && (
+          <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-600">Main</p>
+        )}
+        {navItems.map(item => (
+          <NavItem key={item.to} {...item} active={isActive(item.to)} collapsed={collapsed} />
         ))}
 
         {user?.is_staff && (
           <>
-            <div className="my-3 border-t border-zinc-100 dark:border-zinc-800" />
-            <p className="px-3 mb-2 text-[10px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-600">
-              Administration
-            </p>
-            {adminItems.map(({ to, label, icon: Icon }) => (
-              <NavLink key={to} to={to} className={linkClass}>
-                <Icon size={16} className="shrink-0" />
-                <span>{label}</span>
-              </NavLink>
+            <div className="my-3 h-px bg-white/[0.06]" />
+            {!collapsed && (
+              <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-600">Admin</p>
+            )}
+            {adminItems.map(item => (
+              <NavItem key={item.to} {...item} active={isActive(item.to)} collapsed={collapsed} />
             ))}
           </>
         )}
       </nav>
 
       {/* User chip */}
-      <div className="p-3 border-t border-zinc-100 dark:border-zinc-800/80">
-        <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-zinc-50 dark:bg-zinc-800/50">
-          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-primary-500 to-violet-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
+      <div className="border-t border-white/[0.06] p-3">
+        <div className={cn('flex items-center gap-3 rounded-xl bg-white/[0.03] p-2.5', collapsed && 'justify-center')}>
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary-500 to-accent-600 text-xs font-bold text-white">
             {user?.username?.[0]?.toUpperCase()}
           </div>
-          <div className="min-w-0">
-            <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 truncate">{user?.username}</p>
-            <p className="text-[10px] text-zinc-400 truncate">{user?.is_staff ? 'Administrator' : 'Member'}</p>
-          </div>
+          {!collapsed && (
+            <div className="min-w-0">
+              <p className="truncate text-xs font-semibold text-zinc-200">{user?.username}</p>
+              <p className="truncate text-[10px] text-zinc-500">{user?.is_staff ? 'Administrator' : 'Member'}</p>
+            </div>
+          )}
         </div>
       </div>
-    </aside>
+
+      {/* Collapse toggle */}
+      <button
+        onClick={toggle}
+        title={collapsed ? 'Expand' : 'Collapse'}
+        className="absolute -right-3 top-16 flex h-6 w-6 items-center justify-center rounded-full border border-white/10 bg-ink-700 text-zinc-300 shadow-md transition-colors hover:bg-ink-600 hover:text-white"
+      >
+        {collapsed ? <PanelLeftOpen size={13} /> : <PanelLeftClose size={13} />}
+      </button>
+    </motion.aside>
   )
 }

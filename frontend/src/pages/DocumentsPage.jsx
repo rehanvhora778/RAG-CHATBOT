@@ -1,31 +1,86 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { documentsAPI } from '../api/documents'
-import { Upload, Trash2, FileText, RefreshCw, Eye, CheckCircle, Clock, XCircle, Loader, CloudUpload } from 'lucide-react'
+import {
+  Upload, Trash2, FileText, RefreshCw, Eye,
+  CheckCircle, Clock, XCircle, Loader, CloudUpload, FileType2,
+} from 'lucide-react'
 import toast from 'react-hot-toast'
-import { PageLoader } from '../components/common/LoadingSpinner'
 import Modal from '../components/common/Modal'
+import AnimatedButton from '../components/ui/AnimatedButton'
+import GlassCard from '../components/ui/GlassCard'
+import LoadingSkeleton, { SkeletonDocCard } from '../components/ui/LoadingSkeleton'
 
-const STATUS_ICON = {
-  completed:  <CheckCircle size={13} className="text-emerald-500" />,
-  processing: <Loader size={13} className="text-amber-500 animate-spin" />,
-  pending:    <Clock size={13} className="text-zinc-400" />,
-  failed:     <XCircle size={13} className="text-red-500" />,
+const STATUS_META = {
+  completed:  { icon: <CheckCircle size={12} className="text-success-400" />, badge: 'bg-success-500/15 text-success-400', label: 'completed' },
+  processing: { icon: <Loader size={12} className="animate-spin text-amber-400" />, badge: 'bg-amber-500/15 text-amber-400', label: 'processing' },
+  pending:    { icon: <Clock size={12} className="text-zinc-400" />, badge: 'bg-white/5 text-zinc-400', label: 'pending' },
+  failed:     { icon: <XCircle size={12} className="text-red-400" />, badge: 'bg-red-500/15 text-red-400', label: 'failed' },
 }
 
-const STATUS_BADGE = {
-  completed:  'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400',
-  processing: 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400',
-  pending:    'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400',
-  failed:     'bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400',
+const item = { hidden: { opacity: 0, y: 18 }, show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.22, 1, 0.36, 1] } } }
+
+function DocCard({ doc, onView, onDelete }) {
+  const meta = STATUS_META[doc.status] || STATUS_META.pending
+  const isProcessing = doc.status === 'processing' || doc.status === 'pending'
+  return (
+    <motion.div
+      layout
+      variants={item}
+      exit={{ opacity: 0, scale: 0.9 }}
+      whileHover={{ y: -4 }}
+      transition={{ type: 'spring', stiffness: 300, damping: 24 }}
+      className="group relative overflow-hidden rounded-2xl border border-white/[0.07] bg-ink-800/60 p-5 backdrop-blur-xl transition-colors hover:border-primary-500/30"
+    >
+      {isProcessing && (
+        <div className="shimmer pointer-events-none absolute inset-0 rounded-2xl" />
+      )}
+
+      <div className="relative flex items-start justify-between">
+        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-primary-500/20 to-accent-500/10 ring-1 ring-white/10">
+          <FileText size={18} className="text-primary-300" />
+        </div>
+        <span className={`badge ${meta.badge}`}>{meta.icon}{meta.label}</span>
+      </div>
+
+      <p className="relative mt-4 truncate text-sm font-semibold text-white" title={doc.original_filename}>
+        {doc.original_filename}
+      </p>
+
+      <div className="relative mt-2 flex items-center gap-3 text-xs text-zinc-500">
+        <span className="inline-flex items-center gap-1 uppercase"><FileType2 size={12} />{doc.file_type}</span>
+        <span>•</span>
+        <span>{doc.file_size_display}</span>
+        {doc.page_count ? (<><span>•</span><span>{doc.page_count} pages</span></>) : null}
+      </div>
+
+      <div className="relative mt-4 flex items-center gap-2 border-t border-white/[0.05] pt-3">
+        {doc.status === 'completed' && (
+          <button
+            onClick={() => onView(doc)}
+            className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-primary-300 transition-colors hover:bg-primary-500/10"
+          >
+            <Eye size={13} /> Summary
+          </button>
+        )}
+        <button
+          onClick={() => onDelete(doc.id)}
+          className="ml-auto inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-zinc-500 transition-colors hover:bg-red-500/10 hover:text-red-400"
+        >
+          <Trash2 size={13} /> Delete
+        </button>
+      </div>
+    </motion.div>
+  )
 }
 
 export default function DocumentsPage() {
-  const [docs, setDocs]           = useState([])
-  const [loading, setLoading]     = useState(true)
+  const [docs, setDocs] = useState([])
+  const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
-  const [dragOver, setDragOver]   = useState(false)
-  const [selected, setSelected]   = useState(null)
-  const [summary, setSummary]     = useState(null)
+  const [dragOver, setDragOver] = useState(false)
+  const [selected, setSelected] = useState(null)
+  const [summary, setSummary] = useState(null)
   const [summaryOpen, setSummaryOpen] = useState(false)
   const fileRef = useRef()
 
@@ -56,7 +111,7 @@ export default function DocumentsPage() {
       fetchDocs()
     } catch (err) {
       const errs = err.response?.data?.errors
-      if (Array.isArray(errs)) errs.forEach(e => toast.error(e))
+      if (Array.isArray(errs)) errs.forEach(msg => toast.error(msg))
       else toast.error(err.response?.data?.message || 'Upload failed.')
     } finally {
       setUploading(false)
@@ -83,11 +138,26 @@ export default function DocumentsPage() {
     } catch { setSummary('Failed to load summary.') }
   }
 
-  if (loading) return <PageLoader />
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-5xl space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <LoadingSkeleton className="h-7 w-40" />
+            <LoadingSkeleton className="h-3 w-56" />
+          </div>
+          <LoadingSkeleton className="h-9 w-32 rounded-xl" />
+        </div>
+        <LoadingSkeleton className="h-40 w-full rounded-2xl" />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => <SkeletonDocCard key={i} />)}
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 animate-fade-in">
-
+    <div className="mx-auto max-w-5xl space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -95,24 +165,18 @@ export default function DocumentsPage() {
           <p className="page-subtitle">{docs.length} document{docs.length !== 1 ? 's' : ''} in your workspace</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={fetchDocs} className="btn-secondary">
+          <AnimatedButton variant="secondary" size="sm" onClick={fetchDocs}>
             <RefreshCw size={14} /> Refresh
-          </button>
-          <button onClick={() => fileRef.current.click()} disabled={uploading} className="btn-primary">
-            <Upload size={14} />
-            {uploading ? 'Uploading…' : 'Upload Files'}
-          </button>
+          </AnimatedButton>
+          <AnimatedButton size="sm" onClick={() => fileRef.current.click()} loading={uploading}>
+            {!uploading && <Upload size={14} />} {uploading ? 'Uploading' : 'Upload Files'}
+          </AnimatedButton>
           <input ref={fileRef} type="file" multiple accept=".pdf,.docx,.txt" onChange={handleUpload} className="hidden" />
         </div>
       </div>
 
       {/* Drop zone */}
-      <div
-        className={`card border-2 border-dashed p-10 text-center cursor-pointer transition-all duration-200 ${
-          dragOver
-            ? 'border-primary-400 bg-primary-50/50 dark:bg-primary-900/10'
-            : 'border-zinc-200 dark:border-zinc-700 hover:border-primary-300 dark:hover:border-primary-700'
-        }`}
+      <motion.div
         onClick={() => fileRef.current.click()}
         onDrop={e => {
           e.preventDefault(); setDragOver(false)
@@ -120,96 +184,70 @@ export default function DocumentsPage() {
         }}
         onDragOver={e => { e.preventDefault(); setDragOver(true) }}
         onDragLeave={() => setDragOver(false)}
+        animate={{ scale: dragOver ? 1.01 : 1 }}
+        className={`relative cursor-pointer overflow-hidden rounded-2xl border-2 border-dashed p-10 text-center transition-colors ${
+          dragOver ? 'border-primary-500/70 bg-primary-500/[0.06]' : 'border-white/10 hover:border-primary-500/40'
+        }`}
       >
-        <div className={`w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center transition-colors ${
-          dragOver ? 'bg-primary-100 dark:bg-primary-900/30' : 'bg-zinc-100 dark:bg-zinc-800'
-        }`}>
-          <CloudUpload size={26} className={dragOver ? 'text-primary-500' : 'text-zinc-400'} />
-        </div>
-        <p className="font-semibold text-zinc-700 dark:text-zinc-300 text-sm">
-          {dragOver ? 'Release to upload' : 'Drop files here or click to browse'}
+        {(dragOver || uploading) && (
+          <div className="shimmer pointer-events-none absolute inset-0" />
+        )}
+        <motion.div
+          animate={dragOver ? { y: [-4, 4, -4] } : { y: [0, -8, 0] }}
+          transition={{ duration: dragOver ? 0.6 : 3, repeat: Infinity, ease: 'easeInOut' }}
+          className={`mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl transition-colors ${
+            dragOver ? 'bg-primary-500/20' : 'bg-white/5'
+          }`}
+        >
+          <CloudUpload size={26} className={dragOver ? 'text-primary-300' : 'text-zinc-400'} />
+        </motion.div>
+        <p className="text-sm font-semibold text-zinc-200">
+          {uploading ? 'Uploading your files…' : dragOver ? 'Release to upload' : 'Drop files here or click to browse'}
         </p>
-        <p className="text-xs text-zinc-400 mt-1.5">PDF, DOCX, TXT — up to 50 MB each, max 10 files</p>
-      </div>
+        <p className="mt-1.5 text-xs text-zinc-500">PDF, DOCX, TXT — up to 50 MB each, max 10 files</p>
 
-      {/* Document table */}
+        {uploading && (
+          <div className="absolute inset-x-0 bottom-0 h-0.5 overflow-hidden bg-white/5">
+            <motion.div
+              className="h-full w-1/3 bg-gradient-to-r from-transparent via-primary-400 to-transparent"
+              animate={{ x: ['-100%', '300%'] }}
+              transition={{ duration: 1.1, repeat: Infinity, ease: 'linear' }}
+            />
+          </div>
+        )}
+      </motion.div>
+
+      {/* Document grid */}
       {docs.length === 0 ? (
-        <div className="card p-16 text-center">
-          <FileText className="mx-auto text-zinc-200 dark:text-zinc-700 mb-3" size={44} />
-          <p className="text-zinc-500 dark:text-zinc-400 text-sm">No documents yet. Upload your first file above.</p>
-        </div>
+        <GlassCard className="p-16 text-center">
+          <FileText className="mx-auto mb-3 text-zinc-700" size={44} />
+          <p className="text-sm text-zinc-500">No documents yet. Upload your first file above.</p>
+        </GlassCard>
       ) : (
-        <div className="card overflow-hidden">
-          <div className="px-5 py-3.5 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
-            <p className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">All Documents</p>
-            <span className="badge bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">{docs.length}</span>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/30">
-                <tr>
-                  {['File Name', 'Type', 'Size', 'Pages', 'Status', 'Actions'].map(h => (
-                    <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-zinc-400 uppercase tracking-wide">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                {docs.map(doc => (
-                  <tr key={doc.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors">
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-lg bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center shrink-0">
-                          <FileText size={14} className="text-primary-500" />
-                        </div>
-                        <span className="text-zinc-800 dark:text-zinc-200 truncate max-w-[180px] font-medium" title={doc.original_filename}>
-                          {doc.original_filename}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <span className="badge bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400 uppercase">
-                        {doc.file_type}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3.5 text-zinc-500 dark:text-zinc-400 text-xs">{doc.file_size_display}</td>
-                    <td className="px-5 py-3.5 text-zinc-500 dark:text-zinc-400 text-xs tabular-nums">{doc.page_count || '—'}</td>
-                    <td className="px-5 py-3.5">
-                      <span className={`badge ${STATUS_BADGE[doc.status] || ''}`}>
-                        {STATUS_ICON[doc.status]}
-                        {doc.status}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-1">
-                        {doc.status === 'completed' && (
-                          <button onClick={() => handleViewSummary(doc)} title="View Summary"
-                            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 text-primary-500 transition-colors">
-                            <Eye size={14} />
-                          </button>
-                        )}
-                        <button onClick={() => handleDelete(doc.id)} title="Delete"
-                          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 transition-colors">
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <motion.div
+          layout
+          initial="hidden"
+          animate="show"
+          variants={{ show: { transition: { staggerChildren: 0.05 } } }}
+          className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
+        >
+          <AnimatePresence>
+            {docs.map(doc => (
+              <DocCard key={doc.id} doc={doc} onView={handleViewSummary} onDelete={handleDelete} />
+            ))}
+          </AnimatePresence>
+        </motion.div>
       )}
 
-      {/* Summary Modal */}
-      <Modal open={summaryOpen} onClose={() => setSummaryOpen(false)} title={`Summary — ${selected?.original_filename}`} size="lg">
+      {/* Summary modal */}
+      <Modal open={summaryOpen} onClose={() => setSummaryOpen(false)} title={`Summary — ${selected?.original_filename || ''}`} size="lg">
         {summary === null ? (
-          <div className="flex flex-col items-center justify-center py-10 gap-3">
-            <div className="w-8 h-8 border-2 border-zinc-200 border-t-primary-600 rounded-full animate-spin" />
-            <p className="text-xs text-zinc-400">Generating summary…</p>
+          <div className="flex flex-col items-center justify-center gap-3 py-10">
+            <LoadingSkeleton className="h-24 w-full rounded-xl" />
+            <p className="text-xs text-zinc-500">Generating summary…</p>
           </div>
         ) : (
-          <div className="text-sm text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap leading-relaxed max-h-96 overflow-y-auto">
+          <div className="max-h-96 overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed text-zinc-300">
             {summary || 'No summary available.'}
           </div>
         )}

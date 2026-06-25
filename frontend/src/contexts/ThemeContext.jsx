@@ -1,27 +1,20 @@
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useEffect } from 'react'
 
-const ThemeContext = createContext(null)
+/**
+ * The product is dark-first (premium AI SaaS aesthetic), so the theme is
+ * locked to dark. We keep this provider/hook so existing imports keep working
+ * and a future light theme can slot in without touching consumers.
+ */
+const ThemeContext = createContext({ dark: true, toggle: () => {} })
 
 export function ThemeProvider({ children }) {
-  const [dark, setDark] = useState(() => {
-    const saved = localStorage.getItem('theme')
-    return saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches
-  })
-
   useEffect(() => {
-    if (dark) {
-      document.documentElement.classList.add('dark')
-      localStorage.setItem('theme', 'dark')
-    } else {
-      document.documentElement.classList.remove('dark')
-      localStorage.setItem('theme', 'light')
-    }
-  }, [dark])
-
-  const toggle = () => setDark(d => !d)
+    document.documentElement.classList.add('dark')
+    document.documentElement.style.colorScheme = 'dark'
+  }, [])
 
   return (
-    <ThemeContext.Provider value={{ dark, toggle }}>
+    <ThemeContext.Provider value={{ dark: true, toggle: () => {} }}>
       {children}
     </ThemeContext.Provider>
   )
