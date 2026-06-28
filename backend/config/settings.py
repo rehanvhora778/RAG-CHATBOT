@@ -13,6 +13,12 @@ SECRET_KEY = config('SECRET_KEY', default='django-insecure-replace-me-in-product
 DEBUG = config('DEBUG', default=True, cast=bool)
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=Csv())
 
+# Render injects the live hostname here at runtime — add it automatically so the
+# service works even if ALLOWED_HOSTS wasn't set manually.
+RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
+if RENDER_EXTERNAL_HOSTNAME and RENDER_EXTERNAL_HOSTNAME not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
+
 # ═══════════════════════════════════════════════════════════════
 # APPLICATIONS
 # ═══════════════════════════════════════════════════════════════
@@ -180,6 +186,12 @@ REST_FRAMEWORK = {
 CORS_ALLOWED_ORIGINS = config(
     'CORS_ALLOWED_ORIGINS',
     default='http://localhost:3000,http://127.0.0.1:3000',
+    cast=Csv(),
+)
+# Needed for the Django admin login (and any cross-site POST) over HTTPS in prod.
+CSRF_TRUSTED_ORIGINS = config(
+    'CSRF_TRUSTED_ORIGINS',
+    default='https://*.onrender.com',
     cast=Csv(),
 )
 CORS_ALLOW_CREDENTIALS = True
