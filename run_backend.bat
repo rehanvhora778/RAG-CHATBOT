@@ -6,7 +6,7 @@ echo.
 echo Make sure MongoDB is running on localhost:27017
 echo Backend will run at http://localhost:8000
 echo.
-cd /d "%~dp0"
-call venv\Scripts\activate
+call "%~dp0venv\Scripts\activate"
+cd /d "%~dp0backend"
 python manage.py runserver
 pause

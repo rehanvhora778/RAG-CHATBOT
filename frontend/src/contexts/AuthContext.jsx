@@ -36,13 +36,16 @@ export function AuthProvider({ children }) {
     return userData
   }, [])
 
+  // register() stores the session (tokens + auth header) but intentionally does
+  // NOT set the user in state. RegisterPage shows an animated success screen and
+  // then commits via setUser(), which is what flips GuestRoute and navigates
+  // into the app — letting the success animation actually play.
   const register = useCallback(async (data) => {
     const res = await authAPI.register(data)
     const { tokens, user: userData } = res.data.data
     localStorage.setItem('access_token',  tokens.access)
     localStorage.setItem('refresh_token', tokens.refresh)
     setAuthToken(tokens.access)
-    setUser(userData)
     return userData
   }, [])
 

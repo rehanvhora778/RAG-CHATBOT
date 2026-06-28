@@ -1,125 +1,92 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { motion } from 'framer-motion'
-import { useAuth } from '../contexts/AuthContext'
 import toast from 'react-hot-toast'
-import { Eye, EyeOff, Sparkles, ArrowRight, Lock, User } from 'lucide-react'
-import AuroraBackground from '../components/ui/AuroraBackground'
-import ParticleBackground from '../components/ui/ParticleBackground'
-import AnimatedInput from '../components/ui/AnimatedInput'
+import { Eye, EyeOff, User, Lock, ArrowRight } from 'lucide-react'
+import { useAuth } from '../contexts/AuthContext'
 import AnimatedButton from '../components/ui/AnimatedButton'
-
-const container = {
-  hidden: {},
-  show: { transition: { staggerChildren: 0.08, delayChildren: 0.1 } },
-}
-const item = {
-  hidden: { opacity: 0, y: 16 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] } },
-}
+import { AuthShell, Field } from '../components/landing/AuthShell'
 
 export default function LoginPage() {
   const { login } = useAuth()
   const [form, setForm] = useState({ username: '', password: '' })
-  const [loading, setLoading] = useState(false)
   const [showPwd, setShowPwd] = useState(false)
+  const [remember, setRemember] = useState(true)
+  const [loading, setLoading] = useState(false)
+  const [errors, setErrors] = useState({})
+
+  const set = k => e => {
+    setForm(f => ({ ...f, [k]: e.target.value }))
+    if (errors[k]) setErrors(p => ({ ...p, [k]: undefined }))
+  }
 
   const handleSubmit = async e => {
     e.preventDefault()
-    if (!form.username || !form.password) { toast.error('Please fill in all fields.'); return }
+    const err = {}
+    if (!form.username.trim()) err.username = 'Username is required'
+    if (!form.password) err.password = 'Password is required'
+    if (Object.keys(err).length) { setErrors(err); return }
+
     setLoading(true)
     try {
-      await login(form.username, form.password)
+      await login(form.username.trim(), form.password)
       toast.success('Welcome back!')
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Invalid username or password.')
+    } catch (e2) {
+      toast.error(e2.response?.data?.message || 'Invalid username or password.')
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-ink-950 p-4">
-      <AuroraBackground />
-      <ParticleBackground count={26} />
+    <AuthShell heading="Welcome back" subheading="Sign in to your Nexus RAG workspace.">
+      <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+        <Field
+          label="Username"
+          icon={User}
+          placeholder="your_username"
+          autoComplete="username"
+          value={form.username}
+          onChange={set('username')}
+          error={errors.username}
+        />
+        <Field
+          label="Password"
+          icon={Lock}
+          type={showPwd ? 'text' : 'password'}
+          placeholder="••••••••"
+          autoComplete="current-password"
+          value={form.password}
+          onChange={set('password')}
+          error={errors.password}
+          rightSlot={
+            <button type="button" onClick={() => setShowPwd(v => !v)} className="text-zinc-400 transition-colors hover:text-zinc-700 dark:hover:text-zinc-200" aria-label="Toggle password">
+              {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          }
+        />
 
-      <motion.div
-        variants={container}
-        initial="hidden"
-        animate="show"
-        className="relative z-10 w-full max-w-sm"
-      >
-        {/* Logo + heading */}
-        <motion.div variants={item} className="mb-8 text-center">
-          <motion.div
-            initial={{ scale: 0, rotate: -30 }}
-            animate={{ scale: 1, rotate: 0 }}
-            transition={{ type: 'spring', stiffness: 260, damping: 18, delay: 0.15 }}
-            className="mx-auto mb-5 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-500 to-accent-600 shadow-glow"
-          >
-            <motion.div
-              animate={{ rotate: [0, 10, -10, 0] }}
-              transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-            >
-              <Sparkles size={28} className="text-white" />
-            </motion.div>
-          </motion.div>
-          <h1 className="font-display text-3xl font-bold tracking-tight text-white">Welcome back</h1>
-          <p className="mt-2 text-sm text-zinc-400">Sign in to your <span className="text-gradient font-semibold">Nexus RAG</span> workspace</p>
-        </motion.div>
+        <label className="flex cursor-pointer items-center gap-2 text-sm lp-sub">
+          <input
+            type="checkbox"
+            checked={remember}
+            onChange={e => setRemember(e.target.checked)}
+            className="h-4 w-4 rounded border-zinc-300 text-primary-600 accent-primary-600 dark:border-white/20"
+          />
+          Remember me
+        </label>
 
-        {/* Glass card */}
-        <motion.div variants={item} className="glass rounded-2xl p-6 shadow-glow-sm">
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <AnimatedInput
-              label="Username"
-              icon={User}
-              value={form.username}
-              onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
-              autoComplete="username"
-            />
-            <AnimatedInput
-              label="Password"
-              icon={Lock}
-              type={showPwd ? 'text' : 'password'}
-              value={form.password}
-              onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-              autoComplete="current-password"
-              rightSlot={
-                <button
-                  type="button"
-                  onClick={() => setShowPwd(v => !v)}
-                  className="text-zinc-500 transition-colors hover:text-zinc-300"
-                >
-                  {showPwd ? <EyeOff size={15} /> : <Eye size={15} />}
-                </button>
-              }
-            />
+        <AnimatedButton type="submit" loading={loading} className="w-full py-3" size="lg">
+          {!loading && <>Sign In <ArrowRight size={16} /></>}
+          {loading && 'Signing in…'}
+        </AnimatedButton>
+      </form>
 
-            <AnimatedButton type="submit" loading={loading} className="mt-2 w-full py-3">
-              {!loading && (
-                <>
-                  Sign In <ArrowRight size={15} />
-                </>
-              )}
-              {loading && 'Signing in'}
-            </AnimatedButton>
-          </form>
-
-          <div className="mt-5 border-t border-white/[0.06] pt-5 text-center">
-            <p className="text-sm text-zinc-400">
-              Don&apos;t have an account?{' '}
-              <Link to="/register" className="font-semibold text-primary-400 underline-offset-2 hover:underline">
-                Create one
-              </Link>
-            </p>
-          </div>
-        </motion.div>
-
-        <motion.p variants={item} className="mt-6 text-center text-xs text-zinc-600">
-          AI RAG Multi-Document Chatbot
-        </motion.p>
-      </motion.div>
-    </div>
+      <p className="mt-7 text-center text-sm lp-sub">
+        Don&apos;t have an account?{' '}
+        <Link to="/register" className="font-semibold text-primary-600 hover:underline dark:text-primary-400">
+          Create one free
+        </Link>
+      </p>
+    </AuthShell>
   )
 }

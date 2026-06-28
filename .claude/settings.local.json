@@ -21,7 +21,17 @@
       "Bash(npm install *)",
       "PowerShell($c = Get-NetTCPConnection -LocalPort 3001 -State Listen -ErrorAction SilentlyContinue; if \\($c\\) { $c.OwningProcess | Select-Object -Unique | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue } ; \"cleaned 3001\" } else { \"3001 already clear\" }; $d = Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue; if \\($d\\) { \"port 3000 still serving your frontend\" } else { \"port 3000 free\" })",
       "Bash(venv/Scripts/python.exe manage.py shell -c \"from django.contrib.auth.models import User; print\\('TOTAL:', User.objects.count\\(\\)\\); [print\\(f'ID={u.id} | {u.username} | {u.email} | admin={u.is_superuser} | staff={u.is_staff} | active={u.is_active}'\\) for u in User.objects.order_by\\('id'\\)]\")",
-      "Bash(venv/Scripts/python.exe -)"
+      "Bash(venv/Scripts/python.exe -)",
+      "Bash(venv/Scripts/python.exe \"C:/Users/rehan/AppData/Local/Temp/claude/D--RAG-chatbot/90b9ccdb-3178-4f7b-8e7d-217c0f4ca54a/scratchpad/diag.py\")",
+      "Bash(venv/Scripts/python.exe \"C:/Users/rehan/AppData/Local/Temp/claude/D--RAG-chatbot/90b9ccdb-3178-4f7b-8e7d-217c0f4ca54a/scratchpad/diag2.py\")",
+      "Bash(venv/Scripts/python.exe \"C:/Users/rehan/AppData/Local/Temp/claude/D--RAG-chatbot/90b9ccdb-3178-4f7b-8e7d-217c0f4ca54a/scratchpad/diag3.py\")",
+      "Bash(cat Procfile)",
+      "Bash(cat railway.toml)",
+      "Bash(cat runtime.txt)",
+      "Bash(cat .railwayignore)",
+      "Bash(cat run_backend.bat)",
+      "Bash(grep -vE \"^\\(venv|\\\\.git\\)$\")",
+      "Bash(grep -rnE \"D:\\\\\\\\\\\\\\\\RAG|/RAG chatbot|BASE_DIR\" --include=*.py apps core services config manage.py)"
     ]
   }
 }

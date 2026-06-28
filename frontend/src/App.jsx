@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './contexts/AuthContext'
 
@@ -8,14 +9,21 @@ function Spinner() {
     </div>
   )
 }
-import LoginPage      from './pages/LoginPage'
-import RegisterPage   from './pages/RegisterPage'
-import DashboardPage  from './pages/DashboardPage'
-import DocumentsPage  from './pages/DocumentsPage'
-import ChatPage       from './pages/ChatPage'
-import AnalyticsPage  from './pages/AnalyticsPage'
-import AdminPage      from './pages/AdminPage'
-import Layout         from './components/common/Layout'
+
+// Code-split every route so the public landing page loads without pulling in
+// the heavy authenticated app (charts, chat, admin).
+const LandingPage   = lazy(() => import('./pages/LandingPage'))
+const LoginPage     = lazy(() => import('./pages/LoginPage'))
+const RegisterPage  = lazy(() => import('./pages/RegisterPage'))
+const PrivacyPage   = lazy(() => import('./pages/PrivacyPage'))
+const TermsPage     = lazy(() => import('./pages/TermsPage'))
+const DashboardPage = lazy(() => import('./pages/DashboardPage'))
+const DocumentsPage = lazy(() => import('./pages/DocumentsPage'))
+const ChatPage      = lazy(() => import('./pages/ChatPage'))
+const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'))
+const AdminPage     = lazy(() => import('./pages/AdminPage'))
+const ProfilePage   = lazy(() => import('./pages/ProfilePage'))
+const Layout        = lazy(() => import('./components/common/Layout'))
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -39,21 +47,26 @@ function GuestRoute({ children }) {
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/login"    element={<GuestRoute><LoginPage /></GuestRoute>} />
-      <Route path="/register" element={<GuestRoute><RegisterPage /></GuestRoute>} />
+    <Suspense fallback={<Spinner />}>
+      <Routes>
+        <Route path="/"         element={<LandingPage />} />
+        <Route path="/login"    element={<GuestRoute><LoginPage /></GuestRoute>} />
+        <Route path="/register" element={<GuestRoute><RegisterPage /></GuestRoute>} />
+        <Route path="/privacy"  element={<PrivacyPage />} />
+        <Route path="/terms"    element={<TermsPage />} />
 
-      <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-        <Route index element={<Navigate to="/dashboard" replace />} />
-        <Route path="dashboard"  element={<DashboardPage />} />
-        <Route path="documents"  element={<DocumentsPage />} />
-        <Route path="chat"       element={<ChatPage />} />
-        <Route path="chat/:sessionId" element={<ChatPage />} />
-        <Route path="analytics"  element={<AnalyticsPage />} />
-        <Route path="admin"      element={<AdminRoute><AdminPage /></AdminRoute>} />
-      </Route>
+        <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+          <Route path="/dashboard"  element={<DashboardPage />} />
+          <Route path="/documents"  element={<DocumentsPage />} />
+          <Route path="/chat"       element={<ChatPage />} />
+          <Route path="/chat/:sessionId" element={<ChatPage />} />
+          <Route path="/analytics"  element={<AnalyticsPage />} />
+          <Route path="/profile"    element={<ProfilePage />} />
+          <Route path="/admin"      element={<AdminRoute><AdminPage /></AdminRoute>} />
+        </Route>
 
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
-    </Routes>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Suspense>
   )
 }

@@ -1,179 +1,186 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { AnimatePresence, motion } from 'framer-motion'
-import { useAuth } from '../contexts/AuthContext'
+import { motion } from 'framer-motion'
 import toast from 'react-hot-toast'
-import { Eye, EyeOff, Sparkles, ArrowRight, ArrowLeft, User, Mail, Lock, UserCircle, Check } from 'lucide-react'
-import AuroraBackground from '../components/ui/AuroraBackground'
-import ParticleBackground from '../components/ui/ParticleBackground'
-import AnimatedInput from '../components/ui/AnimatedInput'
+import { Eye, EyeOff, User, AtSign, Mail, Lock, ArrowRight, CheckCircle2 } from 'lucide-react'
+import { useAuth } from '../contexts/AuthContext'
 import AnimatedButton from '../components/ui/AnimatedButton'
+import { AuthShell, Field } from '../components/landing/AuthShell'
 
-const STEPS = ['Your details', 'Secure account']
+const STRENGTH = ['Too short', 'Weak', 'Fair', 'Good', 'Strong']
+const STRENGTH_COLOR = ['bg-zinc-300 dark:bg-white/15', 'bg-red-500', 'bg-amber-500', 'bg-sky-500', 'bg-emerald-500']
+
+function scorePassword(pw) {
+  if (!pw) return 0
+  let s = 0
+  if (pw.length >= 8) s++
+  if (/[A-Z]/.test(pw) && /[a-z]/.test(pw)) s++
+  if (/\d/.test(pw)) s++
+  if (/[^A-Za-z0-9]/.test(pw)) s++
+  if (pw.length < 8) return 0
+  return s
+}
+
+function StrengthMeter({ pw }) {
+  const score = scorePassword(pw)
+  return (
+    <div>
+      <div className="flex gap-1.5">
+        {[0, 1, 2, 3].map(i => (
+          <span
+            key={i}
+            className={`h-1.5 flex-1 rounded-full transition-colors duration-300 ${i < score ? STRENGTH_COLOR[score] : 'bg-zinc-200 dark:bg-white/10'}`}
+          />
+        ))}
+      </div>
+      <p className="mt-1 text-xs lp-sub">
+        Password strength: <span className="font-semibold lp-h">{STRENGTH[score]}</span>
+      </p>
+    </div>
+  )
+}
+
+function RegisterSuccess({ name }) {
+  return (
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#fbfbfe] px-5 dark:bg-ink-950">
+      <div className="pointer-events-none absolute left-1/2 top-1/2 h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-emerald-500/15 blur-3xl" />
+      <motion.div
+        initial={{ opacity: 0, y: 20, scale: 0.96 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+        className="relative z-10 w-full max-w-md text-center"
+      >
+        <motion.div
+          initial={{ scale: 0, rotate: -40 }}
+          animate={{ scale: 1, rotate: 0 }}
+          transition={{ type: 'spring', stiffness: 220, damping: 16, delay: 0.15 }}
+          className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-[0_0_50px_rgba(16,185,129,0.45)]"
+        >
+          <CheckCircle2 size={40} className="text-white" />
+        </motion.div>
+        <h1 className="font-display text-3xl font-bold tracking-tight lp-h">Account created!</h1>
+        <p className="mt-3 lp-sub">
+          Welcome aboard{name ? `, ${name}` : ''}. Setting up your workspace…
+        </p>
+        <div className="mt-6 flex items-center justify-center gap-2 text-sm lp-sub">
+          <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-500/30 border-t-primary-500" />
+          Redirecting to your dashboard
+        </div>
+      </motion.div>
+    </div>
+  )
+}
 
 export default function RegisterPage() {
-  const { register } = useAuth()
-  const [form, setForm] = useState({
-    username: '', email: '', first_name: '', last_name: '', password: '', password2: '',
-  })
-  const [step, setStep] = useState(0)
-  const [loading, setLoading] = useState(false)
+  const { register, setUser } = useAuth()
+  const [form, setForm] = useState({ fullName: '', username: '', email: '', password: '', password2: '' })
   const [showPwd, setShowPwd] = useState(false)
+  const [agree, setAgree] = useState(false)
+  const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState({})
+  const [success, setSuccess] = useState(false)
+
+  const firstName = useMemo(() => form.fullName.trim().split(/\s+/)[0] || '', [form.fullName])
 
   const set = k => e => {
     setForm(f => ({ ...f, [k]: e.target.value }))
-    if (errors[k]) setErrors(prev => ({ ...prev, [k]: undefined }))
+    if (errors[k]) setErrors(p => ({ ...p, [k]: undefined }))
   }
 
-  const validateStep1 = () => {
+  const validate = () => {
     const e = {}
+    if (!form.fullName.trim()) e.fullName = 'Your name is required'
     if (!form.username.trim()) e.username = 'Username is required'
+    else if (!/^[\w.@+-]+$/.test(form.username.trim())) e.username = 'Letters, digits and . @ + - _ only'
     if (!form.email.trim()) e.email = 'Email is required'
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'Enter a valid email'
+    if (form.password.length < 8) e.password = 'At least 8 characters'
+    if (form.password !== form.password2) e.password2 = 'Passwords do not match'
+    if (!agree) e.agree = 'Please accept the terms to continue'
     setErrors(e)
     return Object.keys(e).length === 0
   }
 
-  const next = () => { if (validateStep1()) setStep(1) }
-
   const handleSubmit = async e => {
     e.preventDefault()
-    const fieldErr = {}
-    if (form.password.length < 8) fieldErr.password = 'Min. 8 characters'
-    if (form.password !== form.password2) fieldErr.password2 = 'Passwords do not match'
-    if (Object.keys(fieldErr).length) { setErrors(fieldErr); return }
+    if (!validate()) return
+
+    const parts = form.fullName.trim().split(/\s+/)
+    const payload = {
+      username: form.username.trim(),
+      email: form.email.trim(),
+      first_name: parts[0] || '',
+      last_name: parts.slice(1).join(' ') || '',
+      password: form.password,
+      password2: form.password2,
+    }
 
     setLoading(true)
     try {
-      await register(form)
-      toast.success('Account created!')
+      const userData = await register(payload)
+      setSuccess(true)
+      // let the success animation play, then commit the session → redirect
+      setTimeout(() => setUser(userData), 1900)
     } catch (err) {
       const apiErrors = err.response?.data?.errors
       if (apiErrors && typeof apiErrors === 'object') {
+        const mapped = {}
+        Object.entries(apiErrors).forEach(([k, v]) => { mapped[k] = Array.isArray(v) ? v[0] : String(v) })
+        setErrors(prev => ({ ...prev, ...mapped }))
         Object.values(apiErrors).flat().forEach(msg => toast.error(msg))
       } else {
         toast.error(err.response?.data?.message || 'Registration failed.')
       }
-    } finally {
       setLoading(false)
     }
   }
 
-  const progress = ((step + 1) / STEPS.length) * 100
+  if (success) return <RegisterSuccess name={firstName} />
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-ink-950 p-4">
-      <AuroraBackground />
-      <ParticleBackground count={26} />
+    <AuthShell heading="Create your account" subheading="Start chatting with your documents in under a minute.">
+      <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+        <Field label="Full name" icon={User} placeholder="Ada Lovelace" autoComplete="name" value={form.fullName} onChange={set('fullName')} error={errors.fullName} />
+        <Field label="Username" icon={AtSign} placeholder="ada" autoComplete="username" value={form.username} onChange={set('username')} error={errors.username} />
+        <Field label="Email" icon={Mail} type="email" placeholder="ada@example.com" autoComplete="email" value={form.email} onChange={set('email')} error={errors.email} />
+        <Field
+          label="Password"
+          icon={Lock}
+          type={showPwd ? 'text' : 'password'}
+          placeholder="At least 8 characters"
+          autoComplete="new-password"
+          value={form.password}
+          onChange={set('password')}
+          error={errors.password}
+          hint={form.password ? <StrengthMeter pw={form.password} /> : null}
+          rightSlot={
+            <button type="button" onClick={() => setShowPwd(v => !v)} className="text-zinc-400 transition-colors hover:text-zinc-700 dark:hover:text-zinc-200" aria-label="Toggle password">
+              {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          }
+        />
+        <Field label="Confirm password" icon={Lock} type="password" placeholder="Re-enter your password" autoComplete="new-password" value={form.password2} onChange={set('password2')} error={errors.password2} />
 
-      <motion.div
-        initial={{ opacity: 0, y: 18 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-        className="relative z-10 w-full max-w-md"
-      >
-        {/* Header */}
-        <div className="mb-7 text-center">
-          <motion.div
-            initial={{ scale: 0, rotate: -30 }}
-            animate={{ scale: 1, rotate: 0 }}
-            transition={{ type: 'spring', stiffness: 260, damping: 18, delay: 0.1 }}
-            className="mx-auto mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-500 to-accent-600 shadow-glow"
-          >
-            <Sparkles size={24} className="text-white" />
-          </motion.div>
-          <h1 className="font-display text-2xl font-bold tracking-tight text-white">Create your account</h1>
-          <p className="mt-1.5 text-sm text-zinc-400">Join the <span className="text-gradient font-semibold">Nexus RAG</span> workspace</p>
-        </div>
+        <label className="flex cursor-pointer items-start gap-2.5 text-sm lp-sub">
+          <input type="checkbox" checked={agree} onChange={e => { setAgree(e.target.checked); if (errors.agree) setErrors(p => ({ ...p, agree: undefined })) }} className="mt-0.5 h-4 w-4 rounded border-zinc-300 text-primary-600 accent-primary-600 dark:border-white/20" />
+          <span>
+            I agree to the{' '}
+            <a href="/terms" target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="font-semibold text-primary-600 hover:underline dark:text-primary-400">Terms</a>{' '}and{' '}
+            <a href="/privacy" target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="font-semibold text-primary-600 hover:underline dark:text-primary-400">Privacy Policy</a>
+          </span>
+        </label>
+        {errors.agree && <p className="-mt-2 text-xs font-medium text-red-500">{errors.agree}</p>}
 
-        {/* Glass form */}
-        <div className="glass rounded-2xl p-6 shadow-glow-sm">
-          {/* Progress indicator */}
-          <div className="mb-6">
-            <div className="mb-2 flex items-center justify-between text-xs font-medium">
-              <span className={step >= 0 ? 'text-primary-300' : 'text-zinc-500'}>
-                {step > 0 ? <Check size={12} className="mr-1 inline" /> : '1. '}{STEPS[0]}
-              </span>
-              <span className={step >= 1 ? 'text-primary-300' : 'text-zinc-500'}>2. {STEPS[1]}</span>
-            </div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
-              <motion.div
-                className="h-full rounded-full bg-gradient-to-r from-primary-500 to-accent-500"
-                animate={{ width: `${progress}%` }}
-                transition={{ type: 'spring', stiffness: 200, damping: 26 }}
-              />
-            </div>
-          </div>
+        <AnimatedButton type="submit" loading={loading} className="w-full py-3" size="lg">
+          {!loading && <>Create Account <ArrowRight size={16} /></>}
+          {loading && 'Creating account…'}
+        </AnimatedButton>
+      </form>
 
-          <form onSubmit={handleSubmit}>
-            <AnimatePresence mode="wait" initial={false}>
-              {step === 0 ? (
-                <motion.div
-                  key="step1"
-                  initial={{ opacity: 0, x: 24 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -24 }}
-                  transition={{ duration: 0.25 }}
-                  className="space-y-4"
-                >
-                  <div className="grid grid-cols-2 gap-3">
-                    <AnimatedInput label="First name" icon={UserCircle} value={form.first_name} onChange={set('first_name')} />
-                    <AnimatedInput label="Last name" value={form.last_name} onChange={set('last_name')} />
-                  </div>
-                  <AnimatedInput label="Username" icon={User} value={form.username} onChange={set('username')} error={errors.username} autoComplete="username" />
-                  <AnimatedInput label="Email" icon={Mail} type="email" value={form.email} onChange={set('email')} error={errors.email} />
-
-                  <AnimatedButton type="button" onClick={next} className="w-full py-3">
-                    Continue <ArrowRight size={15} />
-                  </AnimatedButton>
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="step2"
-                  initial={{ opacity: 0, x: 24 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -24 }}
-                  transition={{ duration: 0.25 }}
-                  className="space-y-4"
-                >
-                  <AnimatedInput
-                    label="Password"
-                    icon={Lock}
-                    type={showPwd ? 'text' : 'password'}
-                    value={form.password}
-                    onChange={set('password')}
-                    error={errors.password}
-                    rightSlot={
-                      <button type="button" onClick={() => setShowPwd(v => !v)} className="text-zinc-500 transition-colors hover:text-zinc-300">
-                        {showPwd ? <EyeOff size={15} /> : <Eye size={15} />}
-                      </button>
-                    }
-                  />
-                  <AnimatedInput label="Confirm password" icon={Lock} type="password" value={form.password2} onChange={set('password2')} error={errors.password2} />
-
-                  <div className="flex gap-3">
-                    <AnimatedButton type="button" variant="secondary" onClick={() => setStep(0)} className="py-3">
-                      <ArrowLeft size={15} />
-                    </AnimatedButton>
-                    <AnimatedButton type="submit" loading={loading} className="flex-1 py-3">
-                      {!loading && (<>Create Account <ArrowRight size={15} /></>)}
-                      {loading && 'Creating account'}
-                    </AnimatedButton>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </form>
-
-          <div className="mt-5 border-t border-white/[0.06] pt-5 text-center">
-            <p className="text-sm text-zinc-400">
-              Already have an account?{' '}
-              <Link to="/login" className="font-semibold text-primary-400 underline-offset-2 hover:underline">Sign in</Link>
-            </p>
-          </div>
-        </div>
-      </motion.div>
-    </div>
+      <p className="mt-7 text-center text-sm lp-sub">
+        Already have an account?{' '}
+        <Link to="/login" className="font-semibold text-primary-600 hover:underline dark:text-primary-400">Sign in</Link>
+      </p>
+    </AuthShell>
   )
 }

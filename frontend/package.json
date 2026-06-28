@@ -13,6 +13,8 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "framer-motion": "^12.40.0",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
     "lucide-react": "^0.400.0",
     "react": "^18.3.1",
     "react-countup": "^6.5.3",
@@ -21,7 +23,9 @@
     "react-intersection-observer": "^10.0.3",
     "react-markdown": "^9.0.1",
     "react-router-dom": "^6.24.1",
+    "react-syntax-highlighter": "^16.1.1",
     "recharts": "^2.12.7",
+    "remark-gfm": "^4.0.1",
     "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {

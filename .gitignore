@@ -15,18 +15,16 @@ venv/
 env/
 ENV/
 
-# Django
+# Django / backend runtime (auto-generated, under backend/)
 *.log
 db.sqlite3
 db.sqlite3-journal
-
-# Project-specific (runtime generated)
 media/
 staticfiles/
 indexes/
 logs/
 
-# Secrets
+# Secrets (backend/.env, frontend/.env)
 .env
 
 # IDE

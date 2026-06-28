@@ -124,7 +124,15 @@ export default function Sidebar() {
 
       {/* User chip */}
       <div className="border-t border-white/[0.06] p-3">
-        <div className={cn('flex items-center gap-3 rounded-xl bg-white/[0.03] p-2.5', collapsed && 'justify-center')}>
+        <Link
+          to="/profile"
+          title="View profile"
+          className={cn(
+            'flex items-center gap-3 rounded-xl bg-white/[0.03] p-2.5 transition-colors hover:bg-white/[0.07]',
+            isActive('/profile') && 'border border-primary-500/30 bg-primary-500/10',
+            collapsed && 'justify-center',
+          )}
+        >
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary-500 to-accent-600 text-xs font-bold text-white">
             {user?.username?.[0]?.toUpperCase()}
           </div>
@@ -134,7 +142,7 @@ export default function Sidebar() {
               <p className="truncate text-[10px] text-zinc-500">{user?.is_staff ? 'Administrator' : 'Member'}</p>
             </div>
           )}
-        </div>
+        </Link>
       </div>
 
       {/* Collapse toggle */}

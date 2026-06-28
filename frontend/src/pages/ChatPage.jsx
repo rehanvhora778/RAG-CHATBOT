@@ -5,15 +5,15 @@ import { chatAPI } from '../api/chat'
 import { documentsAPI } from '../api/documents'
 import {
   Plus, Send, Trash2, Download, MessageSquare,
-  BookOpen, Search, X, Bot, User, Sparkles, Copy, Check,
+  Search, X, Bot, User, Sparkles, Copy, Check,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
-import ReactMarkdown from 'react-markdown'
 import Modal from '../components/common/Modal'
 import { PageLoader } from '../components/common/LoadingSpinner'
 import AnimatedButton from '../components/ui/AnimatedButton'
 import AIThinkingLoader from '../components/ui/AIThinkingLoader'
 import ParticleBackground from '../components/ui/ParticleBackground'
+import MarkdownRenderer from '../components/chat/MarkdownRenderer'
 
 function CopyButton({ text }) {
   const [copied, setCopied] = useState(false)
@@ -82,19 +82,10 @@ function StreamingMarkdown({ content, onTick }) {
 
   const done = shown.length >= content.length
   return (
-    <div className="prose-chat">
-      <ReactMarkdown>{shown}</ReactMarkdown>
+    <div className="relative">
+      <MarkdownRenderer content={shown} />
       {!done && <span className="ml-0.5 inline-block h-3.5 w-1.5 animate-blink rounded-sm bg-primary-400 align-middle" />}
     </div>
-  )
-}
-
-function CitationBadge({ citation }) {
-  return (
-    <span className="inline-flex items-center gap-1 rounded-full border border-primary-500/20 bg-primary-500/10 px-2 py-0.5 text-xs text-primary-300">
-      <BookOpen size={9} />
-      {citation.document_name} · p.{citation.page_number}
-    </span>
   )
 }
 
@@ -108,33 +99,24 @@ function Message({ msg, scrollToBottom }) {
       className={`mb-5 flex gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}
     >
       <Avatar isUser={isUser} />
-      <div className={`flex max-w-[78%] flex-col gap-1 ${isUser ? 'items-end' : 'items-start'}`}>
+      <div className={`flex flex-col gap-1 ${isUser ? 'max-w-[80%] items-end' : 'max-w-[88%] items-start'}`}>
         <div
-          className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+          data-msg-bubble=""
+          data-role={isUser ? 'user' : 'assistant'}
+          className={`text-sm leading-relaxed ${
             isUser
-              ? 'rounded-tr-md bg-gradient-to-br from-primary-600 to-accent-600 text-white shadow-glow-sm'
-              : 'rounded-tl-md border border-white/[0.07] bg-ink-800/80 text-zinc-200 backdrop-blur-sm'
+              ? 'rounded-2xl rounded-tr-md bg-gradient-to-br from-primary-600 to-accent-600 px-4 py-3 text-white shadow-glow-sm'
+              : 'w-full rounded-2xl rounded-tl-md border border-white/[0.07] bg-ink-800/80 px-5 py-4 text-zinc-200 backdrop-blur-sm'
           }`}
         >
           {isUser ? (
-            <p>{msg.content}</p>
+            <p className="whitespace-pre-wrap">{msg.content}</p>
           ) : msg._animate ? (
             <StreamingMarkdown content={msg.content} onTick={scrollToBottom} />
           ) : (
-            <div className="prose-chat"><ReactMarkdown>{msg.content}</ReactMarkdown></div>
+            <MarkdownRenderer content={msg.content} />
           )}
         </div>
-
-        {!isUser && msg.sources?.length > 0 && (
-          <div className="mt-1.5 px-1">
-            <p className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
-              <BookOpen size={9} /> Sources · {msg.sources.length}
-            </p>
-            <div className="flex flex-wrap gap-1">
-              {msg.sources.map((c, i) => <CitationBadge key={i} citation={c} />)}
-            </div>
-          </div>
-        )}
 
         <div className="flex items-center gap-1 px-1">
           {!isUser && <CopyButton text={msg.content} />}
@@ -164,6 +146,7 @@ export default function ChatPage() {
   const [searchQ, setSearchQ] = useState('')
   const [searchResults, setSearchResults] = useState([])
   const [searching, setSearching] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
 
@@ -238,13 +221,116 @@ export default function ChatPage() {
     } catch { toast.error('Delete failed.') }
   }
 
+  // Background that the semi-transparent answer cards composite over (ink-950).
+  const PAGE_BG = '#030712'
+
+  const exportFilename = () => {
+    const slug = s => (s || 'document').replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '').slice(0, 60) || 'document'
+    const idxs = messages.map((m, i) => (m.role === 'assistant' ? i : -1)).filter(i => i >= 0)
+    if (idxs.length === 1) {
+      const q = idxs[0] > 0 ? messages[idxs[0] - 1]?.content : ''
+      return `${slug(q || current?.title)}.pdf`
+    }
+    return `${slug(current?.title)}.pdf`
+  }
+
+  // Export = a high-resolution print of the *rendered* chat cards. We capture
+  // each question + answer card exactly as displayed (Tailwind, dark theme,
+  // tables, syntax highlighting, borders) and paste them into the PDF — one
+  // exchange per page. Nothing is re-rendered or converted to text.
   const exportPDF = async () => {
+    if (exporting) return
+
+    // Pair each answer with its preceding question, in chronological order.
+    const bubbles = Array.from(document.querySelectorAll('[data-msg-bubble]'))
+    const exchanges = []
+    let pendingQ = null
+    for (const el of bubbles) {
+      if (el.dataset.role === 'user') pendingQ = el
+      else { exchanges.push({ q: pendingQ, a: el }); pendingQ = null }
+    }
+    if (!exchanges.length) { toast.error('No answer to export yet.'); return }
+
+    setExporting(true)
+    const tId = toast.loading('Generating PDF…')
     try {
-      const res = await chatAPI.exportPDF(sessionId)
-      const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }))
-      const a = document.createElement('a'); a.href = url; a.download = `${current?.title || 'chat'}.pdf`; a.click()
-      URL.revokeObjectURL(url); toast.success('PDF downloaded.')
-    } catch { toast.error('Export failed.') }
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf'),
+      ])
+      if (document.fonts?.ready) await document.fonts.ready
+
+      const SCALE = 3
+      const pdf = new jsPDF({ unit: 'pt', format: 'a4', compress: true })
+      const pageW = pdf.internal.pageSize.getWidth()
+      const pageH = pdf.internal.pageSize.getHeight()
+      const margin = 28
+      const contentW = pageW - margin * 2
+
+      const fillBg = () => { pdf.setFillColor(3, 7, 18); pdf.rect(0, 0, pageW, pageH, 'F') }
+      const capture = el => html2canvas(el, {
+        scale: SCALE,
+        backgroundColor: PAGE_BG,
+        useCORS: true,
+        letterRendering: true,
+        logging: false,
+        ignoreElements: e => e.classList?.contains?.('export-hide'),
+      })
+
+      // Place a (possibly tall) canvas at `startY`, flowing onto new pages as
+      // needed. Returns the y-cursor after the last slice.
+      const placeSliced = (canvas, x, targetW, startY) => {
+        const pxPerPt = canvas.width / targetW
+        let srcY = 0
+        let y = startY
+        while (srcY < canvas.height) {
+          let availPx = Math.floor(((pageH - margin) - y) * pxPerPt)
+          if (availPx < 1) { pdf.addPage(); fillBg(); y = margin; availPx = Math.floor(((pageH - margin) - y) * pxPerPt) }
+          const h = Math.min(availPx, canvas.height - srcY)
+          const slice = document.createElement('canvas')
+          slice.width = canvas.width
+          slice.height = h
+          const ctx = slice.getContext('2d')
+          ctx.fillStyle = PAGE_BG
+          ctx.fillRect(0, 0, slice.width, slice.height)
+          ctx.drawImage(canvas, 0, srcY, canvas.width, h, 0, 0, canvas.width, h)
+          pdf.addImage(slice.toDataURL('image/png'), 'PNG', x, y, targetW, h / pxPerPt)
+          srcY += h
+          y += h / pxPerPt
+          if (srcY < canvas.height) { pdf.addPage(); fillBg(); y = margin }
+        }
+        return y
+      }
+
+      let firstPage = true
+      for (const ex of exchanges) {
+        if (!firstPage) pdf.addPage()
+        firstPage = false
+        fillBg()
+        let y = margin
+
+        if (ex.q) {
+          const qc = await capture(ex.q)
+          const naturalWpt = (qc.width / SCALE) * 0.75
+          const qW = Math.min(contentW * 0.72, naturalWpt)
+          const qX = pageW - margin - qW        // right-aligned, like the chat
+          y = placeSliced(qc, qX, qW, y) + 16    // gap before the answer
+        }
+
+        const ac = await capture(ex.a)
+        // Don't start the answer with a tiny sliver at the bottom of the page.
+        if ((pageH - margin) - y < 130) { pdf.addPage(); fillBg(); y = margin }
+        placeSliced(ac, margin, contentW, y)
+      }
+
+      pdf.save(exportFilename())
+      toast.success('PDF downloaded.', { id: tId })
+    } catch (err) {
+      console.error('PDF export failed:', err)
+      toast.error('Export failed.', { id: tId })
+    } finally {
+      setExporting(false)
+    }
   }
 
   const SessionItem = ({ s }) => (
@@ -340,8 +426,9 @@ export default function ChatPage() {
                 <h3 className="truncate font-display text-sm font-semibold text-white">{current?.title}</h3>
                 <p className="truncate text-xs text-zinc-500">{current?.document_names?.join(', ')}</p>
               </div>
-              <AnimatedButton variant="secondary" size="sm" onClick={exportPDF}>
-                <Download size={13} /> Export PDF
+              <AnimatedButton variant="secondary" size="sm" onClick={exportPDF} loading={exporting} disabled={exporting}>
+                {!exporting && <><Download size={13} /> Export PDF</>}
+                {exporting && 'Exporting…'}
               </AnimatedButton>
             </div>
 
@@ -351,7 +438,7 @@ export default function ChatPage() {
                 <div className="py-16 text-center text-zinc-500">
                   <Bot size={36} className="mx-auto mb-3 text-zinc-700" />
                   <p className="text-sm font-medium text-zinc-400">Ask anything about your documents</p>
-                  <p className="mt-1 text-xs">I&apos;ll search through your files and answer with citations.</p>
+                  <p className="mt-1 text-xs">Get clear, well-structured answers in seconds.</p>
                 </div>
               )}
               {messages.map((msg, i) => <Message key={i} msg={msg} scrollToBottom={scrollToBottom} />)}
@@ -365,7 +452,7 @@ export default function ChatPage() {
                   >
                     <Avatar isUser={false} />
                     <div className="rounded-2xl rounded-tl-md border border-white/[0.07] bg-ink-800/80 px-4 py-3 backdrop-blur-sm">
-                      <AIThinkingLoader label="Searching your documents" />
+                      <AIThinkingLoader label="Thinking…" />
                     </div>
                   </motion.div>
                 )}
@@ -397,7 +484,7 @@ export default function ChatPage() {
                 </div>
               </div>
               <p className="mt-2 text-center text-[10px] text-zinc-600">
-                Enter to send · Shift+Enter for new line · Answers are grounded in your documents
+                Enter to send · Shift+Enter for new line
               </p>
             </div>
           </>
