@@ -82,21 +82,31 @@ def _extract_pdf_text_native(page) -> str:
     return ""
 
 
-def _extract_pdf_page_via_vision(page, page_num: int) -> str:
-    """Render a PDF page to an image and extract text using Groq Vision (Llama)."""
+def _render_page_png_b64(page) -> str:
+    """Render a PDF page to a base64-encoded PNG (2x zoom for OCR quality).
+
+    Kept separate from the OCR call because PyMuPDF page objects are NOT
+    thread-safe: rendering must happen on the main thread, while the network
+    OCR call (below) can safely fan out across a thread pool.
+    """
+    import fitz
+    import base64
+
+    mat = fitz.Matrix(2.0, 2.0)  # 2x zoom for better OCR quality
+    pix = page.get_pixmap(matrix=mat)
+    return base64.b64encode(pix.tobytes("png")).decode("utf-8")
+
+
+def _ocr_image_b64(img_b64: str, page_num: int) -> str:
+    """Extract text from a rendered page image using Groq Vision (Llama).
+
+    Network-bound and thread-safe (shared httpx client), so this is what we
+    parallelize across scanned pages.
+    """
     try:
-        import fitz
-        import io
-        import base64
-        from groq import Groq
-        from django.conf import settings
+        from services.llm import get_groq_client
 
-        mat = fitz.Matrix(2.0, 2.0)  # 2x zoom for better OCR quality
-        pix = page.get_pixmap(matrix=mat)
-        img_bytes = pix.tobytes("png")
-        img_b64 = base64.b64encode(img_bytes).decode("utf-8")
-
-        client = Groq(api_key=settings.GROQ_API_KEY)
+        client = get_groq_client()
         response = client.chat.completions.create(
             model="meta-llama/llama-4-scout-17b-16e-instruct",
             messages=[
@@ -133,6 +143,7 @@ def extract_text_from_pdf(file_path: str) -> List[Dict[str, Any]]:
     Falls back to Gemini Vision for scanned/image-based pages.
     """
     import fitz  # PyMuPDF
+    from django.conf import settings
     from services.chunker import clean_text
 
     pages = []
@@ -146,10 +157,12 @@ def extract_text_from_pdf(file_path: str) -> List[Dict[str, Any]]:
             page = doc[page_num]
             text = clean_text(_extract_pdf_text_native(page))
 
-            # Append any detected tables so tabular data survives into the chunks.
-            tables_md = _extract_pdf_tables(page)
-            if tables_md:
-                text = (text + "\n\n" + tables_md).strip() if text else tables_md
+            # Table detection (find_tables) is costly per page, so it's opt-in via
+            # PDF_EXTRACT_TABLES — enable it only for table-heavy documents.
+            if settings.PDF_EXTRACT_TABLES:
+                tables_md = _extract_pdf_tables(page)
+                if tables_md:
+                    text = (text + "\n\n" + tables_md).strip() if text else tables_md
 
             if text:
                 pages.append({
@@ -161,26 +174,38 @@ def extract_text_from_pdf(file_path: str) -> List[Dict[str, Any]]:
                 scanned_pages.append((page_num + 1, page))
 
         if scanned_pages:
+            workers = max(1, settings.OCR_MAX_WORKERS)
             logger.info(
-                "%d page(s) have no native text — attempting Gemini Vision OCR",
-                len(scanned_pages)
+                "%d page(s) have no native text — Groq Vision OCR (%d parallel workers)",
+                len(scanned_pages), workers,
             )
-            for page_num, page in scanned_pages:
-                text = clean_text(_extract_pdf_page_via_vision(page, page_num))
-                if text:
-                    pages.append({
-                        'page_number': page_num,
-                        'content': text,
-                        'char_count': len(text),
-                    })
-                else:
-                    empty_pages += 1
-                    # Add a placeholder so the page is still represented
-                    pages.append({
-                        'page_number': page_num,
-                        'content': f"[Page {page_num}: Image-based content — text could not be extracted]",
-                        'char_count': 50,
-                    })
+            from concurrent.futures import ThreadPoolExecutor
+
+            # Render on the main thread (PyMuPDF isn't thread-safe), then OCR the
+            # batch in parallel. Batching by worker count bounds peak memory.
+            for start in range(0, len(scanned_pages), workers):
+                batch = scanned_pages[start:start + workers]
+                rendered = [(pn, _render_page_png_b64(pg)) for pn, pg in batch]
+                with ThreadPoolExecutor(max_workers=workers) as pool:
+                    results = list(
+                        pool.map(lambda r: (r[0], _ocr_image_b64(r[1], r[0])), rendered)
+                    )
+                for page_num, raw in results:
+                    text = clean_text(raw)
+                    if text:
+                        pages.append({
+                            'page_number': page_num,
+                            'content': text,
+                            'char_count': len(text),
+                        })
+                    else:
+                        empty_pages += 1
+                        # Add a placeholder so the page is still represented
+                        pages.append({
+                            'page_number': page_num,
+                            'content': f"[Page {page_num}: Image-based content — text could not be extracted]",
+                            'char_count': 50,
+                        })
 
         # Sort by page number
         pages.sort(key=lambda p: p['page_number'])

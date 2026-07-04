@@ -227,6 +227,15 @@ ALLOWED_DOCUMENT_MIME_TYPES = [
     'text/plain',
 ]
 
+# --- PDF processing speed knobs ---
+# Table detection (PyMuPDF find_tables) runs a costly layout analysis on EVERY
+# page. It's off by default because it dominates extraction time on large PDFs;
+# enable it only for table-heavy documents.
+PDF_EXTRACT_TABLES = config('PDF_EXTRACT_TABLES', default=False, cast=bool)
+# Scanned/image pages are OCR'd via Groq Vision (one network call per page).
+# These calls run in parallel with this many workers to avoid serial waiting.
+OCR_MAX_WORKERS = config('OCR_MAX_WORKERS', default=6, cast=int)
+
 # ═══════════════════════════════════════════════════════════════
 # FAISS
 # ═══════════════════════════════════════════════════════════════
@@ -241,6 +250,8 @@ MEDIA_ROOT.mkdir(exist_ok=True)
 
 EMBEDDING_MODEL_NAME = config('EMBEDDING_MODEL_NAME', default='all-MiniLM-L6-v2')
 EMBEDDING_DIMENSION  = 384
+# Larger batches cut Python overhead when embedding many chunks on CPU.
+EMBEDDING_BATCH_SIZE = config('EMBEDDING_BATCH_SIZE', default=64, cast=int)
 
 # ═══════════════════════════════════════════════════════════════
 # GROQ LLM

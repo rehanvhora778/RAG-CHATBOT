@@ -89,13 +89,9 @@ def process_document(document_id: str, user_id: int, file_path: str, file_type: 
         save_index(user_id, document_id, embeddings, chunk_ids_for_faiss)
         logger.info("✓ Vector database ready: %d vectors indexed", len(chunk_ids_for_faiss))
 
-        logger.info("Generating AI summary for document %s", document_id)
-        try:
-            summary = generate_document_summary(real_pages)
-        except Exception as exc:
-            logger.warning("Summary generation failed: %s", exc)
-            summary = "Summary could not be generated."
-
+        # Mark completed as soon as the document is searchable/chattable. The AI
+        # summary is a blocking LLM call, so it's generated AFTER this point and
+        # never delays when the user can start chatting.
         documents_col().update_one(
             {'_id': doc_oid},
             {
@@ -105,16 +101,32 @@ def process_document(document_id: str, user_id: int, file_path: str, file_type: 
                     'word_count':   word_count,
                     'chunk_count':  len(chunks),
                     'vector_count': len(chunk_ids_for_faiss),
-                    'summary':      summary,
+                    'summary':      'Generating summary…',
                     'error_message': '',
                     'updated_at':   timezone.now(),
                 }
             },
         )
         logger.info(
-            "Document %s processed in %.1fs: %d pages, %d chunks, %d words",
+            "Document %s ready in %.1fs: %d pages, %d chunks, %d words",
             document_id, time.perf_counter() - started, page_count, len(chunks), word_count,
         )
+
+        # --- Deferred summary: fully guarded so nothing here can flip an already
+        # completed document to 'failed'. ---
+        try:
+            logger.info("Generating AI summary for document %s", document_id)
+            summary = generate_document_summary(real_pages)
+        except Exception as exc:
+            logger.warning("Summary generation failed: %s", exc)
+            summary = "Summary could not be generated."
+        try:
+            documents_col().update_one(
+                {'_id': doc_oid},
+                {'$set': {'summary': summary, 'updated_at': timezone.now()}},
+            )
+        except Exception as exc:
+            logger.warning("Failed to store summary for %s: %s", document_id, exc)
 
     except Exception as exc:
         logger.error("Document processing failed for %s: %s", document_id, exc, exc_info=True)

@@ -13,8 +13,17 @@ _model = None
 def get_embedding_model():
     global _model
     if _model is None:
+        import os
         from sentence_transformers import SentenceTransformer
         from django.conf import settings
+
+        # Use all CPU cores for encoding (torch defaults can under-subscribe).
+        try:
+            import torch
+            torch.set_num_threads(os.cpu_count() or 1)
+        except Exception:
+            pass
+
         model_name = settings.EMBEDDING_MODEL_NAME
         logger.info("Loading embedding model: %s", model_name)
         _model = SentenceTransformer(model_name)
@@ -22,8 +31,13 @@ def get_embedding_model():
     return _model
 
 
-def embed_texts(texts: List[str], batch_size: int = 32):
+def embed_texts(texts: List[str], batch_size: int = None):
     import numpy as np
+    from django.conf import settings
+
+    if batch_size is None:
+        batch_size = getattr(settings, 'EMBEDDING_BATCH_SIZE', 64)
+
     model = get_embedding_model()
     embeddings = model.encode(
         texts,
