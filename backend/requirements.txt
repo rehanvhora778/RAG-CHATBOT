@@ -44,8 +44,7 @@ reportlab==4.5.1
 # Utilities
 Pillow==10.4.0
 
-# Production server
-gunicorn==22.0.0
+# Static file serving
 whitenoise==6.7.0
 
 # Groq LLM
