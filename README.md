@@ -22,9 +22,7 @@ Sentence-Transformers embeddings · Groq (Llama 3.3 70B) · React + Vite + Tailw
 │   ├── media/          uploaded files        (auto-created, gitignored)
 │   └── indexes/        per-user FAISS indexes (auto-created, gitignored)
 ├── frontend/           React + Vite single-page app
-├── venv/               Python virtual environment (gitignored)
-├── run_backend.bat     start the API   (http://localhost:8000)
-└── run_frontend.bat    start the UI    (http://localhost:3000)
+└── venv/               Python virtual environment (gitignored)
 ```
 
 ## Prerequisites
@@ -36,23 +34,21 @@ Sentence-Transformers embeddings · Groq (Llama 3.3 70B) · React + Vite + Tailw
 ## Run (Windows)
 
 1. Make sure MongoDB is running.
-2. Double-click **`run_backend.bat`** — activates the venv, then starts Django on port 8000.
-3. Double-click **`run_frontend.bat`** — starts the Vite dev server on port 3000.
+2. **Backend** — in one terminal:
+   ```bat
+   call venv\Scripts\activate
+   cd backend
+   python manage.py runserver
+   ```
+   Django starts on http://localhost:8000
+3. **Frontend** — in a second terminal:
+   ```bat
+   cd frontend
+   npm install
+   npm run dev
+   ```
+   Vite dev server starts on http://localhost:3000
 4. Open http://localhost:3000
-
-### Manual equivalent
-
-```bat
-:: Backend
-call venv\Scripts\activate
-cd backend
-python manage.py runserver
-
-:: Frontend (separate terminal)
-cd frontend
-npm install
-npm run dev
-```
 
 ## First-time setup
 
