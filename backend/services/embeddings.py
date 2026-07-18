@@ -1,52 +1,171 @@
 """
 Module 7: Embeddings
-Sentence Transformers wrapper — singleton model instance with lazy loading.
+ONNX Runtime backend (DirectML iGPU when available, otherwise CPU) with a
+sentence-transformers/PyTorch fallback. Both backends load the SAME model
+weights in fp32 and apply the same mean-pooling + L2-normalisation, so they
+produce identical vectors — FAISS indexes stay compatible whichever runs.
+
+All ML imports are lazy to avoid Django startup failures when packages
+aren't installed. Call preload_embedding_model_async() at server start so
+the first upload/chat never pays the model-load cost.
 """
 import logging
+import threading
 from typing import List
 
 logger = logging.getLogger(__name__)
 
-_model = None
+_backend = None
+_backend_lock = threading.Lock()
+
+# all-MiniLM-L6-v2's native sequence limit.
+_MAX_SEQ_LENGTH = 256
 
 
-def get_embedding_model():
-    global _model
-    if _model is None:
+class _OnnxBackend:
+    """MiniLM-style bi-encoder on ONNX Runtime (mean pooling + L2 norm)."""
+
+    def __init__(self, model_name: str, provider_pref: str = 'auto'):
+        import os
+        import onnxruntime as ort
+        from transformers import AutoTokenizer
+        from huggingface_hub import hf_hub_download
+
+        repo_id = model_name if '/' in model_name else f'sentence-transformers/{model_name}'
+        try:
+            model_path = hf_hub_download(repo_id, 'onnx/model.onnx')
+        except Exception:
+            # No network — fall back to whatever is already in the local HF cache.
+            model_path = hf_hub_download(repo_id, 'onnx/model.onnx', local_files_only=True)
+        self.tokenizer = AutoTokenizer.from_pretrained(repo_id)
+
+        so = ort.SessionOptions()
+        so.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+        use_dml = (
+            provider_pref in ('auto', 'dml')
+            and 'DmlExecutionProvider' in ort.get_available_providers()
+        )
+        if use_dml:
+            providers = ['DmlExecutionProvider', 'CPUExecutionProvider']
+        else:
+            providers = ['CPUExecutionProvider']
+            so.intra_op_num_threads = os.cpu_count() or 4
+        self.session = ort.InferenceSession(model_path, so, providers=providers)
+        self.input_names = {i.name for i in self.session.get_inputs()}
+        self.device = 'DirectML GPU' if 'DmlExecutionProvider' in self.session.get_providers() else 'CPU'
+
+    def _encode_batch(self, texts: List[str]):
+        import numpy as np
+
+        enc = self.tokenizer(
+            texts,
+            return_tensors='np',
+            padding=True,
+            truncation=True,
+            max_length=_MAX_SEQ_LENGTH,
+        )
+        feeds = {k: v.astype(np.int64) for k, v in enc.items() if k in self.input_names}
+        (hidden,) = self.session.run(None, feeds)
+        mask = enc['attention_mask'][..., None].astype(np.float32)
+        emb = (hidden * mask).sum(axis=1) / np.clip(mask.sum(axis=1), 1e-9, None)
+        emb /= np.clip(np.linalg.norm(emb, axis=1, keepdims=True), 1e-12, None)
+        return emb.astype(np.float32)
+
+    def encode(self, texts: List[str], batch_size: int):
+        import numpy as np
+
+        if not texts:
+            return np.zeros((0, 384), dtype=np.float32)
+        # Sort by length so each batch pads to its own (shorter) maximum, then
+        # restore the caller's order at the end.
+        order = sorted(range(len(texts)), key=lambda i: len(texts[i]))
+        chunks = [
+            self._encode_batch([texts[j] for j in order[i:i + batch_size]])
+            for i in range(0, len(order), batch_size)
+        ]
+        flat = np.vstack(chunks)
+        out = np.empty_like(flat)
+        out[order] = flat
+        return out
+
+
+class _TorchBackend:
+    """Original sentence-transformers path — fallback when ONNX is unavailable."""
+
+    def __init__(self, model_name: str):
         import os
         from sentence_transformers import SentenceTransformer
-        from django.conf import settings
 
-        # Use all CPU cores for encoding (torch defaults can under-subscribe).
         try:
             import torch
             torch.set_num_threads(os.cpu_count() or 1)
         except Exception:
             pass
+        self.model = SentenceTransformer(model_name)
+        self.device = 'CPU (torch)'
+
+    def encode(self, texts: List[str], batch_size: int):
+        import numpy as np
+
+        emb = self.model.encode(
+            texts,
+            batch_size=batch_size,
+            show_progress_bar=False,
+            convert_to_numpy=True,
+            normalize_embeddings=True,
+        )
+        return emb.astype(np.float32)
+
+
+def get_embedding_model():
+    """Return the singleton embedding backend, creating it on first use."""
+    global _backend
+    if _backend is not None:
+        return _backend
+    with _backend_lock:
+        if _backend is not None:
+            return _backend
+
+        from django.conf import settings
 
         model_name = settings.EMBEDDING_MODEL_NAME
-        logger.info("Loading embedding model: %s", model_name)
-        _model = SentenceTransformer(model_name)
-        logger.info("Embedding model loaded.")
-    return _model
+        preferred = getattr(settings, 'EMBEDDING_BACKEND', 'onnx')
+        if preferred == 'onnx':
+            try:
+                logger.info("Loading embedding model (ONNX): %s", model_name)
+                _backend = _OnnxBackend(
+                    model_name,
+                    provider_pref=getattr(settings, 'EMBEDDING_ONNX_PROVIDER', 'auto'),
+                )
+                logger.info("Embedding model ready on %s.", _backend.device)
+                return _backend
+            except Exception as exc:
+                logger.warning("ONNX embedding backend unavailable (%s) — falling back to torch.", exc)
+
+        logger.info("Loading embedding model (torch): %s", model_name)
+        _backend = _TorchBackend(model_name)
+        logger.info("Embedding model ready on %s.", _backend.device)
+        return _backend
+
+
+def preload_embedding_model_async():
+    """Warm the embedding model in a daemon thread so the first upload or chat
+    message doesn't pay the model-load cost."""
+    def _load():
+        try:
+            get_embedding_model()
+        except Exception as exc:
+            logger.warning("Embedding model preload failed: %s", exc)
+
+    threading.Thread(target=_load, name='embedding-preload', daemon=True).start()
 
 
 def embed_texts(texts: List[str], batch_size: int = None):
-    import numpy as np
     from django.conf import settings
 
     if batch_size is None:
         batch_size = getattr(settings, 'EMBEDDING_BATCH_SIZE', 64)
-
-    model = get_embedding_model()
-    embeddings = model.encode(
-        texts,
-        batch_size=batch_size,
-        show_progress_bar=False,
-        convert_to_numpy=True,
-        normalize_embeddings=True,
-    )
-    return embeddings.astype(np.float32)
+    return get_embedding_model().encode(texts, batch_size=batch_size)
 
 
 def embed_query(query: str):

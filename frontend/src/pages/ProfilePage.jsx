@@ -73,8 +73,7 @@ export default function ProfilePage() {
 
   /* ── Personal information ──────────────────────────────── */
   const [info, setInfo] = useState({
-    first_name: user?.first_name || '',
-    last_name: user?.last_name || '',
+    full_name: user?.full_name || '',
     email: user?.email || '',
   })
   const [infoErrors, setInfoErrors] = useState({})
@@ -82,8 +81,7 @@ export default function ProfilePage() {
 
   const infoDirty = useMemo(
     () =>
-      info.first_name !== (user?.first_name || '') ||
-      info.last_name !== (user?.last_name || '') ||
+      info.full_name !== (user?.full_name || '') ||
       info.email !== (user?.email || ''),
     [info, user],
   )
@@ -97,16 +95,14 @@ export default function ProfilePage() {
   const saveInfo = async e => {
     e.preventDefault()
     const errs = {}
-    if (!info.first_name.trim()) errs.first_name = 'First name is required'
-    if (!info.last_name.trim()) errs.last_name = 'Last name is required'
+    if (!info.full_name.trim()) errs.full_name = 'Full name is required'
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(info.email.trim())) errs.email = 'Enter a valid email'
     if (Object.keys(errs).length) { setInfoErrors(errs); return }
 
     setSavingInfo(true)
     try {
       const res = await authAPI.updateProfile({
-        first_name: info.first_name.trim(),
-        last_name: info.last_name.trim(),
+        full_name: info.full_name.trim(),
         email: info.email.trim(),
       })
       setUser(res.data.data)
@@ -157,8 +153,8 @@ export default function ProfilePage() {
     }
   }
 
-  const fullName = `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || user?.username
-  const initial = (user?.first_name?.[0] || user?.username?.[0] || '?').toUpperCase()
+  const fullName = user?.full_name?.trim() || user?.username
+  const initial = (user?.full_name?.[0] || user?.username?.[0] || '?').toUpperCase()
   const isAdmin = !!user?.is_staff
 
   return (
@@ -212,10 +208,7 @@ export default function ProfilePage() {
             </div>
 
             <form onSubmit={saveInfo} className="space-y-4" noValidate>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <AnimatedInput label="First name" icon={User} value={info.first_name} onChange={setInfoField('first_name')} error={infoErrors.first_name} autoComplete="given-name" />
-                <AnimatedInput label="Last name" icon={User} value={info.last_name} onChange={setInfoField('last_name')} error={infoErrors.last_name} autoComplete="family-name" />
-              </div>
+              <AnimatedInput label="Full name" icon={User} value={info.full_name} onChange={setInfoField('full_name')} error={infoErrors.full_name} autoComplete="name" />
               <AnimatedInput label="Email" icon={Mail} type="email" value={info.email} onChange={setInfoField('email')} error={infoErrors.email} autoComplete="email" />
 
               <div className="flex items-center gap-2 rounded-xl border border-white/[0.05] bg-white/[0.02] px-3.5 py-2.5 text-sm text-zinc-500">

@@ -90,8 +90,7 @@ class AdminUserListView(APIView):
                 'id':          u.id,
                 'username':    u.username,
                 'email':       u.email,
-                'first_name':  u.first_name,
-                'last_name':   u.last_name,
+                'full_name':   u.first_name,
                 'is_active':   u.is_active,
                 'is_staff':    u.is_staff,
                 'is_superuser': u.is_superuser,
@@ -125,7 +124,7 @@ class AdminUserDetailView(APIView):
         return APIResponse.success(data={
             'user': {
                 'id': u.id, 'username': u.username, 'email': u.email,
-                'first_name': u.first_name, 'last_name': u.last_name,
+                'full_name': u.first_name,
                 'is_active': u.is_active, 'is_staff': u.is_staff, 'is_superuser': u.is_superuser,
                 'date_joined': u.date_joined.isoformat(),
                 'last_login':  u.last_login.isoformat() if u.last_login else None,
@@ -158,8 +157,7 @@ class AdminUserDetailView(APIView):
         }, message='User updated.')
 
     def delete(self, request, user_id):
-        if str(user_id) == str(request.user.id):
-            return APIResponse.error('You cannot delete your own account.')
+        # Admins may delete their own account too — the frontend signs them out afterwards.
         try:
             u = User.objects.get(id=user_id)
         except User.DoesNotExist:

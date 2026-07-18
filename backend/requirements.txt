@@ -27,6 +27,11 @@ filetype==1.2.0
 sentence-transformers==3.1.1
 faiss-cpu==1.8.0
 numpy==1.26.4
+# Fast embedding inference. The DirectML build uses any Windows GPU (incl. AMD
+# iGPUs); on other platforms the plain CPU build is used. sentence-transformers
+# stays as the fallback backend (EMBEDDING_BACKEND=torch).
+onnxruntime-directml==1.24.4; sys_platform == 'win32'
+onnxruntime==1.27.0; sys_platform != 'win32'
 
 # LLM
 google-generativeai==0.8.3

@@ -57,15 +57,15 @@ def process_document(document_id: str, user_id: int, file_path: str, file_type: 
 
         word_count = get_word_count(real_pages)
         page_count = len(pages)
-        logger.info("✓ Document processed — pages extracted: %d", page_count)
+        logger.info("Document processed — pages extracted: %d", page_count)
 
         chunks = chunk_pages(real_pages)
         if not chunks:
             raise ValueError("Chunking produced no results.")
-        logger.info("✓ Chunks created: %d", len(chunks))
+        logger.info("Chunks created: %d", len(chunks))
 
         embeddings = embed_chunks(chunks)
-        logger.info("✓ Embeddings generated: %d vectors (model: %s)",
+        logger.info("Embeddings generated: %d vectors (model: %s)",
                     embeddings.shape[0], settings.EMBEDDING_MODEL_NAME)
 
         chunk_docs = []
@@ -87,7 +87,7 @@ def process_document(document_id: str, user_id: int, file_path: str, file_type: 
         chunk_ids_for_faiss = [str(oid) for oid in insert_result.inserted_ids]
 
         save_index(user_id, document_id, embeddings, chunk_ids_for_faiss)
-        logger.info("✓ Vector database ready: %d vectors indexed", len(chunk_ids_for_faiss))
+        logger.info("Vector database ready: %d vectors indexed", len(chunk_ids_for_faiss))
 
         # Mark completed as soon as the document is searchable/chattable. The AI
         # summary is a blocking LLM call, so it's generated AFTER this point and

@@ -120,7 +120,7 @@ export default function DashboardPage() {
               <Sparkles size={11} /> AI Workspace
             </div>
             <h2 className="font-display text-2xl font-bold text-white">
-              Welcome back, <span className="text-gradient-animated">{user?.first_name || user?.username}</span>
+              Welcome back, <span className="text-gradient-animated">{user?.full_name?.split(' ')[0] || user?.username}</span>
             </h2>
             <p className="mt-1 text-sm text-zinc-400">Here&apos;s an overview of your knowledge base.</p>
           </div>

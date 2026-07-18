@@ -105,12 +105,10 @@ export default function RegisterPage() {
     e.preventDefault()
     if (!validate()) return
 
-    const parts = form.fullName.trim().split(/\s+/)
     const payload = {
       username: form.username.trim(),
       email: form.email.trim(),
-      first_name: parts[0] || '',
-      last_name: parts.slice(1).join(' ') || '',
+      full_name: form.fullName.trim(),
       password: form.password,
       password2: form.password2,
     }
@@ -125,7 +123,7 @@ export default function RegisterPage() {
       const apiErrors = err.response?.data?.errors
       if (apiErrors && typeof apiErrors === 'object') {
         const mapped = {}
-        Object.entries(apiErrors).forEach(([k, v]) => { mapped[k] = Array.isArray(v) ? v[0] : String(v) })
+        Object.entries(apiErrors).forEach(([k, v]) => { mapped[k === 'full_name' ? 'fullName' : k] = Array.isArray(v) ? v[0] : String(v) })
         setErrors(prev => ({ ...prev, ...mapped }))
         Object.values(apiErrors).flat().forEach(msg => toast.error(msg))
       } else {

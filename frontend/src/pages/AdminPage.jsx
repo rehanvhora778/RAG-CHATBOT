@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { adminAPI } from '../api/analytics'
+import { useAuth } from '../contexts/AuthContext'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line,
@@ -213,6 +214,7 @@ function UserModal({ user, onClose, onUpdate }) {
 
 // ─── Main Admin Page ────────────────────────────────────────────────────────
 export default function AdminPage() {
+  const { user: me, logout } = useAuth()
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('overview')
@@ -284,9 +286,18 @@ export default function AdminPage() {
   }
 
   const deleteUser = async (userId, username) => {
-    if (!confirm(`Delete user "${username}" and all their data? This cannot be undone.`)) return
+    const isSelf = me?.id === userId
+    const msg = isSelf
+      ? `Delete your own account "${username}" and all its data? You will be signed out. This cannot be undone.`
+      : `Delete user "${username}" and all their data? This cannot be undone.`
+    if (!confirm(msg)) return
     try {
       await adminAPI.deleteUser(userId)
+      if (isSelf) {
+        toast.success('Your account has been deleted.')
+        await logout() // clears the session; route guards redirect to /login
+        return
+      }
       setUsers(u => u.filter(x => x.id !== userId)); setUserTotal(t => t - 1)
       toast.success('User deleted.')
     } catch { toast.error('Delete failed.') }

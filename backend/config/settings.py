@@ -253,6 +253,15 @@ EMBEDDING_DIMENSION  = 384
 # Larger batches cut Python overhead when embedding many chunks on CPU.
 EMBEDDING_BATCH_SIZE = config('EMBEDDING_BATCH_SIZE', default=64, cast=int)
 
+# Backend: 'onnx' (ONNX Runtime — uses the DirectML GPU when available, several
+# times faster than torch on CPU too) or 'torch' (original sentence-transformers).
+# Both produce identical vectors, so switching never invalidates FAISS indexes.
+EMBEDDING_BACKEND       = config('EMBEDDING_BACKEND',       default='onnx')
+# ONNX provider: 'auto' (DirectML if present, else CPU), 'dml', or 'cpu'.
+EMBEDDING_ONNX_PROVIDER = config('EMBEDDING_ONNX_PROVIDER', default='auto')
+# Load the model in the background at server start (first upload doesn't wait).
+EMBEDDING_PRELOAD       = config('EMBEDDING_PRELOAD',       default=True, cast=bool)
+
 # ═══════════════════════════════════════════════════════════════
 # GROQ LLM
 # ═══════════════════════════════════════════════════════════════
